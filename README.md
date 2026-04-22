@@ -1,4 +1,4 @@
-# Sovereign Ledger
+# Reign
 
 **Local-first personal finance tracker.** No cloud, no subscriptions, no data leaks. Your money, your machine, your rules.
 
@@ -80,8 +80,8 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | more"
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/yourusername/sovereign-ledger.git
-cd sovereign-ledger
+git clone https://github.com/rinopatrick/reign.git
+cd reign
 
 # 2. Run (uv automatically creates venv + installs deps)
 uv run python -m sovereign_ledger
@@ -95,7 +95,7 @@ That's it. No `pip install`, no `requirements.txt` manual setup. `uv` handles ev
 ### Install as Tool
 
 ```bash
-uv tool install git+https://github.com/yourusername/sovereign-ledger.git
+uv tool install git+https://github.com/rinopatrick/reign.git
 
 # Then run anytime:
 sovereign-ledger
@@ -168,11 +168,13 @@ sovereign-ledger/
 
 ## Screenshots
 
-*(Add screenshots here)*
-
 | Dashboard | Transactions | Calendar |
 |-----------|-------------|----------|
-| ![Dashboard]() | ![Transactions]() | ![Calendar]() |
+| ![Dashboard](docs/assets/dashboard.png) | ![Transactions](docs/assets/transactions.png) | ![Calendar](docs/assets/calendar.png) |
+
+| Budgets |
+|---------|
+| ![Budgets](docs/assets/budgets.png) |
 
 ---
 
@@ -185,6 +187,19 @@ sovereign-ledger/
 - [ ] Mobile PWA support
 - [ ] Investment/Stock tracking
 - [ ] Split transactions
+
+---
+
+## Support
+
+If this tool saves you time or money, consider supporting its development:
+
+| Platform | Link | Payment Methods |
+|----------|------|----------------|
+| **Saweria** (Indonesia) | [saweria.co/rinopatrick](https://saweria.co/rinopatrick) | QRIS, GoPay, OVO, Dana, LinkAja |
+| **Ko-fi** (International) | [ko-fi.com/rinopatrick](https://ko-fi.com/rinopatrick) | PayPal, Credit Card |
+
+Every cup of coffee helps keep this project alive and growing.
 
 ---
 
@@ -205,4 +220,4 @@ Built with:
 
 ---
 
-**Sovereign Ledger** — *Finance without surveillance.*
+**Reign** — *Finance without surveillance.*
