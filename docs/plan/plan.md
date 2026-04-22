@@ -1,7 +1,7 @@
-# Plan — Sovereign Ledger v1.0
+# Plan — Reign v1.0
 
 **Status:** [ ] Not Started
-**Track:** sovereign-ledger
+**Track:** reign
 
 ---
 

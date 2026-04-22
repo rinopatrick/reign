@@ -33,7 +33,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(
-    title="Sovereign Ledger",
+    title="Reign",
     version="0.2.0",
     lifespan=lifespan,
 )

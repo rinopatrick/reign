@@ -10,7 +10,7 @@
 
 ## Philosophy
 
-Sovereign Ledger was built for one purpose: give you complete control over your financial data. Everything runs locally on your machine using a single SQLite file. No accounts to create, no API keys to manage, no vendor lock-in.
+Reign was built for one purpose: give you complete control over your financial data. Everything runs locally on your machine using a single SQLite file. No accounts to create, no API keys to manage, no vendor lock-in.
 
 ---
 
@@ -98,7 +98,7 @@ That's it. No `pip install`, no `requirements.txt` manual setup. `uv` handles ev
 uv tool install git+https://github.com/rinopatrick/reign.git
 
 # Then run anytime:
-sovereign-ledger
+reign
 ```
 
 ---
@@ -108,8 +108,8 @@ sovereign-ledger
 Your data lives in a single SQLite file in the project directory:
 
 ```
-sovereign-ledger/
-├── sovereign-ledger.db   <-- Your data is here
+reign/
+├── reign.db   <-- Your data is here
 ├── src/
 └── ...
 ```
@@ -143,7 +143,7 @@ uv run ruff check src/
 ## Architecture
 
 ```
-sovereign-ledger/
+reign/
 ├── src/sovereign_ledger/
 │   ├── api/
 │   │   ├── app.py              # FastAPI factory

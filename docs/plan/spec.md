@@ -1,4 +1,4 @@
-# Sovereign Ledger — Specification
+# Reign — Specification
 
 ## Overview
 Local-first personal finance dashboard. Self-hosted, zero subscription, AI-assisted.
@@ -36,5 +36,5 @@ Local-first personal finance dashboard. Self-hosted, zero subscription, AI-assis
 1. User can upload BCA/Mandiri CSV and see categorized transactions within 3 seconds
 2. Dashboard loads in <1s for 1000 transactions
 3. PDF report renders A4 with cover, summary, category breakdown
-4. All data stored in single SQLite file (`sovereign-ledger.db`)
+4. All data stored in single SQLite file (`reign.db`)
 5. Zero external API calls required for core functionality

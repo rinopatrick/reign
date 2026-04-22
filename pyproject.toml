@@ -1,5 +1,5 @@
 [project]
-name = "sovereign-ledger"
+name = "reign"
 version = "0.2.0"
 description = "Local-first personal finance dashboard"
 readme = "README.md"
@@ -14,6 +14,9 @@ dependencies = [
     "reportlab>=4.2.0",
     "python-multipart>=0.0.17",
 ]
+
+[project.scripts]
+reign = "sovereign_ledger.__main__:main"
 
 [dependency-groups]
 dev = [

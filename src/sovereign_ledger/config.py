@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     """App settings loaded from environment variables."""
 
-    database_url: str = "sqlite+aiosqlite:///./sovereign-ledger.db"
+    database_url: str = "sqlite+aiosqlite:///./reign.db"
     app_env: str = "development"
     log_level: str = "INFO"
 

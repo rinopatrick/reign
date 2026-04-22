@@ -122,7 +122,7 @@ def generate_monthly_report(
         story.append(Paragraph("No expense data for this period.", styles["body"]))
 
     story.append(Spacer(1, 12))
-    story.append(Paragraph("Sovereign Ledger — Local-first personal finance", styles["subtitle"]))
+    story.append(Paragraph("Reign — Local-first personal finance", styles["subtitle"]))
 
     doc.build(story)
     buffer.seek(0)
