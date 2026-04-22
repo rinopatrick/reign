@@ -16,6 +16,7 @@ from reign.domain.models import (
     Goal,
     RecurringTransaction,
     Transaction,
+    TransactionSplit,
 )
 from reign.exceptions import NotFoundError
 
@@ -98,7 +99,10 @@ class TransactionRepository:
     ) -> Sequence[Transaction]:
         stmt = (
             select(Transaction)
-            .options(selectinload(Transaction.category))
+            .options(
+                selectinload(Transaction.category),
+                selectinload(Transaction.splits).selectinload(TransactionSplit.category),
+            )
             .order_by(Transaction.date.desc())
         )
         if not include_deleted:
@@ -106,7 +110,12 @@ class TransactionRepository:
         if account_id:
             stmt = stmt.where(Transaction.account_id == account_id)
         if category_id:
-            stmt = stmt.where(Transaction.category_id == category_id)
+            stmt = stmt.where(
+                or_(
+                    Transaction.category_id == category_id,
+                    Transaction.splits.any(TransactionSplit.category_id == category_id),
+                )
+            )
         if start_date:
             stmt = stmt.where(Transaction.date >= start_date)
         if end_date:
@@ -124,13 +133,48 @@ class TransactionRepository:
         result = await self._session.execute(stmt.limit(limit).offset(offset))
         return result.scalars().all()
 
-    async def create(self, transaction: Transaction) -> Transaction:
+    async def create(self, transaction: Transaction, splits: list[TransactionSplit] | None = None) -> Transaction:
         self._session.add(transaction)
+        if splits:
+            for split in splits:
+                split.transaction = transaction
+                self._session.add(split)
         await self._session.commit()
         await self._session.refresh(transaction)
-        # Re-fetch with category eager-loaded to avoid MissingGreenlet in response serialization
+        # Re-fetch with relationships eager-loaded
         result = await self._session.execute(
-            select(Transaction).options(selectinload(Transaction.category)).where(Transaction.id == transaction.id)
+            select(Transaction)
+            .options(
+                selectinload(Transaction.category),
+                selectinload(Transaction.splits).selectinload(TransactionSplit.category),
+            )
+            .where(Transaction.id == transaction.id)
+        )
+        return result.scalar_one()
+
+    async def update(self, transaction_id: int, data: dict, splits: list[TransactionSplit] | None = None) -> Transaction:
+        tx = await self._session.get(Transaction, transaction_id)
+        if not tx:
+            raise NotFoundError(f"Transaction {transaction_id} not found")
+        for key, value in data.items():
+            if hasattr(tx, key):
+                setattr(tx, key, value)
+        # Replace splits if provided
+        if splits is not None:
+            for existing in list(tx.splits):
+                await self._session.delete(existing)
+            for split in splits:
+                split.transaction_id = tx.id
+                self._session.add(split)
+        await self._session.commit()
+        await self._session.refresh(tx)
+        result = await self._session.execute(
+            select(Transaction)
+            .options(
+                selectinload(Transaction.category),
+                selectinload(Transaction.splits).selectinload(TransactionSplit.category),
+            )
+            .where(Transaction.id == tx.id)
         )
         return result.scalar_one()
 

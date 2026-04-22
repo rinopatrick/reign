@@ -108,16 +108,17 @@ tailwind.config = { darkMode: 'class' };
   </main>
 </div>
 
-<!-- Modal: Add Transaction -->
+<!-- Modal: Add/Edit Transaction -->
 <div id="tx-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
   <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
     <div class="p-4 border-b dark:border-gray-700 flex items-center justify-between">
-      <h3 class="text-sm font-semibold dark:text-gray-200">Add Transaction</h3>
+      <h3 id="tx-modal-title" class="text-sm font-semibold dark:text-gray-200">Add Transaction</h3>
       <button onclick="closeTxModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
     </div>
     <form id="tx-form" onsubmit="saveTransaction(event)" class="p-4 space-y-4">
+      <input type="hidden" name="tx_id" id="tx-id" value="">
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="text-xs text-gray-500 dark:text-gray-400">Date</label>
@@ -137,10 +138,24 @@ tailwind.config = { darkMode: 'class' };
           <label class="text-xs text-gray-500 dark:text-gray-400">Account</label>
           <select name="account_id" id="tx-account-select" class="w-full text-sm border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2" required></select>
         </div>
-        <div>
+        <div id="tx-single-category-wrap">
           <label class="text-xs text-gray-500 dark:text-gray-400">Category</label>
           <select name="category_id" id="tx-category-select" class="w-full text-sm border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2"></select>
         </div>
+      </div>
+      <!-- Split toggle -->
+      <div class="flex items-center gap-2">
+        <input type="checkbox" id="tx-is-split" onchange="toggleSplitMode()" class="rounded">
+        <label for="tx-is-split" class="text-sm dark:text-gray-300">Split transaction (multiple categories)</label>
+      </div>
+      <!-- Split rows container -->
+      <div id="tx-splits-wrap" class="hidden space-y-2">
+        <div class="flex items-center justify-between">
+          <label class="text-xs text-gray-500 dark:text-gray-400">Splits</label>
+          <span id="tx-split-total" class="text-xs font-medium dark:text-gray-200"></span>
+        </div>
+        <div id="tx-splits-list" class="space-y-2"></div>
+        <button type="button" onclick="addSplitRow()" class="text-xs text-blue-600 hover:underline">+ Add split</button>
       </div>
       <div>
         <label class="text-xs text-gray-500 dark:text-gray-400">Currency</label>

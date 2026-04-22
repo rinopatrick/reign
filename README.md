@@ -105,6 +105,34 @@ Both scripts will start the app and print the address. Just open `http://localho
 
 > **Tip:** You can bookmark the address. The app stays running until you close the terminal window.
 
+### Desktop App (Recommended for Non-Technical Users)
+
+For a true "just double-click and use" experience, build Reign as a standalone desktop app:
+
+**1. Install build tools**
+```bash
+uv sync --dev
+```
+
+**2. Build the executable**
+```bash
+# Windows / macOS / Linux
+python scripts/build_desktop.py
+```
+
+**3. Done!**
+
+The executable will be at `dist/Reign` (or `dist/Reign.exe` on Windows). Double-click it to run — no terminal, no browser juggling. The app opens your default browser automatically and starts the server in the background.
+
+Your data is stored in the OS user data folder, not inside the app:
+- **Windows:** `%LOCALAPPDATA%\Reign\`
+- **macOS:** `~/Library/Application Support/Reign/`
+- **Linux:** `~/.local/share/Reign/`
+
+This means you can move or replace the executable without losing your data.
+
+> **Note:** Build on each target OS for best results. PyInstaller cannot cross-compile (e.g., you can't build a Windows .exe from macOS).
+
 ### Install as Tool (Advanced)
 
 ```bash
@@ -201,7 +229,7 @@ reign/
 - [x] **Scheduled backups** ✓
 - [ ] Mobile PWA support
 - [ ] Investment/Stock tracking
-- [ ] Split transactions
+- [x] **Split transactions** ✓
 
 ---
 

@@ -64,6 +64,24 @@ class Transaction(Base):
 
     account: Mapped["Account"] = relationship(back_populates="transactions")
     category: Mapped[Optional["Category"]] = relationship(back_populates="transactions")
+    splits: Mapped[list["TransactionSplit"]] = relationship(
+        back_populates="transaction", cascade="all, delete-orphan"
+    )
+
+
+class TransactionSplit(Base):
+    """A split line within a transaction."""
+
+    __tablename__ = "transaction_splits"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    transaction_id: Mapped[int] = mapped_column(ForeignKey("transactions.id"), nullable=False)
+    category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), nullable=True)
+    amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    transaction: Mapped["Transaction"] = relationship(back_populates="splits")
+    category: Mapped[Optional["Category"]] = relationship()
 
 
 class Budget(Base):

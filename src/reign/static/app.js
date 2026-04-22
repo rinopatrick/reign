@@ -358,6 +358,11 @@ function renderTxRows(txs) {
   }
   tbody.innerHTML = txs.map(tx => {
     const tagList = (tx.tags || '').split(',').filter(t => t.trim()).map(t => `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 mr-1">${t.trim()}</span>`).join('');
+    const isSplit = tx.splits && tx.splits.length > 0;
+    const splitBadge = isSplit ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 ml-1">Split</span>` : '';
+    const categoryDisplay = isSplit
+      ? tx.splits.map(s => s.category ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium mr-1" style="background:${s.category.color}20;color:${s.category.color}">${s.category.name}</span>` : '-').join('')
+      : (tx.category ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium" style="background:${tx.category.color}20;color:${tx.category.color}">${tx.category.name}</span>` : '-');
     return `
     <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 ${tx.is_reconciled ? 'bg-emerald-50 dark:bg-emerald-900/20' : ''}" onclick="toggleTxDetails(${tx.id})">
       <td class="px-4 py-3"><input type="checkbox" class="tx-checkbox" value="${tx.id}" onclick="event.stopPropagation()"></td>
@@ -367,17 +372,26 @@ function renderTxRows(txs) {
         ${tagList ? `<div class="mt-1">${tagList}</div>` : ''}
       </td>
       <td class="px-4 py-3">
-        ${tx.category ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium" style="background:${tx.category.color}20;color:${tx.category.color}">${tx.category.name}</span>` : '-'}
+        ${categoryDisplay}
         ${tx.transaction_type === 'transfer' ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 ml-1">Transfer</span>` : ''}
+        ${splitBadge}
       </td>
       <td class="px-4 py-3 text-right font-medium ${tx.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${tx.amount >= 0 ? '+' : ''}${formatMoney(tx.amount)}</td>
-      <td class="px-4 py-3 text-right">
+      <td class="px-4 py-3 text-right flex items-center justify-end gap-2">
+        <button onclick="event.stopPropagation(); editTransaction(${tx.id})" class="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400" title="Edit">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+        </button>
         <button onclick="event.stopPropagation(); deleteTransaction(${tx.id})" class="text-gray-400 hover:text-rose-600 dark:hover:text-rose-400">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
         </button>
       </td>
     </tr>
-    ${tx.notes ? `<tr id="tx-details-${tx.id}" class="hidden border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"><td colspan="6" class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400"><span class="font-medium">Notes:</span> ${tx.notes}</td></tr>` : ''}
+    ${(tx.notes || isSplit) ? `<tr id="tx-details-${tx.id}" class="hidden border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+      <td colspan="6" class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 space-y-1">
+        ${tx.notes ? `<div><span class="font-medium">Notes:</span> ${tx.notes}</div>` : ''}
+        ${isSplit ? `<div><span class="font-medium">Splits:</span> ${tx.splits.map(s => `${s.category ? s.category.name : 'Uncategorized'}: ${formatMoney(s.amount)}`).join(', ')}</div>` : ''}
+      </td>
+    </tr>` : ''}
   `}).join('');
 }
 
@@ -452,6 +466,7 @@ async function deleteTransaction(id) {
 // ============== TRANSACTION MODAL ==============
 let modalAccounts = [];
 let modalCategories = [];
+let editingTxId = null;
 
 async function openTxModal(prefill = {}) {
   const modal = document.getElementById('tx-modal');
@@ -467,10 +482,17 @@ async function openTxModal(prefill = {}) {
   const catSel = document.getElementById('tx-category-select');
   catSel.innerHTML = `<option value="">-- None --</option>` + modalCategories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
 
+  // Reset split UI
+  document.getElementById('tx-is-split').checked = false;
+  toggleSplitMode();
+  document.getElementById('tx-splits-list').innerHTML = '';
+
   // Defaults
   const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('tx-id').value = prefill.id || '';
+  document.getElementById('tx-modal-title').textContent = prefill.id ? 'Edit Transaction' : 'Add Transaction';
   document.getElementById('tx-date').value = prefill.date || today;
-  document.querySelector('#tx-form [name="amount"]').value = prefill.amount || '';
+  document.querySelector('#tx-form [name="amount"]').value = prefill.amount !== undefined ? Math.abs(prefill.amount) : '';
   document.querySelector('#tx-form [name="description"]').value = prefill.description || '';
   document.querySelector('#tx-form [name="account_id"]').value = prefill.account_id || modalAccounts[0]?.id || '';
   document.querySelector('#tx-form [name="category_id"]').value = prefill.category_id || '';
@@ -479,12 +501,68 @@ async function openTxModal(prefill = {}) {
   document.querySelector('#tx-form [name="tags"]').value = prefill.tags || '';
   document.getElementById('tx-is-expense').checked = prefill.is_expense !== undefined ? prefill.is_expense : true;
 
+  // Handle splits prefill
+  if (prefill.splits && prefill.splits.length > 0) {
+    document.getElementById('tx-is-split').checked = true;
+    toggleSplitMode();
+    prefill.splits.forEach(s => addSplitRow(s));
+  } else if (prefill.id) {
+    // Editing non-split: ensure at least one split row if they toggle later
+    addSplitRow();
+    // But hide it since split mode is off
+    const list = document.getElementById('tx-splits-list');
+    list.innerHTML = '';
+  }
+
+  editingTxId = prefill.id || null;
   refreshTemplateSelect();
   document.querySelector('#tx-form [name="description"]')?.focus();
 }
 
 function closeTxModal() {
   document.getElementById('tx-modal').classList.add('hidden');
+  editingTxId = null;
+}
+
+function toggleSplitMode() {
+  const isSplit = document.getElementById('tx-is-split').checked;
+  document.getElementById('tx-single-category-wrap').classList.toggle('hidden', isSplit);
+  document.getElementById('tx-splits-wrap').classList.toggle('hidden', !isSplit);
+  if (isSplit && document.getElementById('tx-splits-list').children.length === 0) {
+    addSplitRow();
+    addSplitRow();
+  }
+  updateSplitTotal();
+}
+
+function addSplitRow(data = null) {
+  const list = document.getElementById('tx-splits-list');
+  const idx = list.children.length;
+  const row = document.createElement('div');
+  row.className = 'grid grid-cols-[1fr,auto,auto] gap-2 items-center';
+  row.innerHTML = `
+    <select class="tx-split-cat text-sm border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2">
+      <option value="">-- Category --</option>
+      ${modalCategories.map(c => `<option value="${c.id}" ${data && data.category_id == c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
+    </select>
+    <input type="number" step="0.01" placeholder="Amount" class="tx-split-amt w-28 text-sm border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2" value="${data ? Math.abs(data.amount) : ''}">
+    <button type="button" onclick="this.parentElement.remove(); updateSplitTotal();" class="text-gray-400 hover:text-rose-600">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+  `;
+  list.appendChild(row);
+  row.querySelector('.tx-split-amt').addEventListener('input', updateSplitTotal);
+  updateSplitTotal();
+}
+
+function updateSplitTotal() {
+  const totalEl = document.getElementById('tx-split-total');
+  const amts = Array.from(document.querySelectorAll('.tx-split-amt')).map(i => parseFloat(i.value) || 0);
+  const total = amts.reduce((a, b) => a + b, 0);
+  const mainAmt = parseFloat(document.querySelector('#tx-form [name="amount"]').value) || 0;
+  const diff = Math.abs(mainAmt) - total;
+  totalEl.textContent = `Total: ${total.toLocaleString()} / ${Math.abs(mainAmt).toLocaleString()} ${Math.abs(diff) < 0.01 ? '✓' : `(diff: ${diff.toLocaleString()})`}`;
+  totalEl.className = `text-xs font-medium ${Math.abs(diff) < 0.01 ? 'text-emerald-600' : 'text-amber-600'}`;
 }
 
 async function saveTransaction(e) {
@@ -495,22 +573,69 @@ async function saveTransaction(e) {
   if (isExpense) amount = -Math.abs(amount);
   else amount = Math.abs(amount);
 
+  const isSplit = document.getElementById('tx-is-split').checked;
+  let splits = null;
+  if (isSplit) {
+    const splitRows = document.querySelectorAll('#tx-splits-list > div');
+    splits = Array.from(splitRows).map(row => {
+      const catId = row.querySelector('.tx-split-cat').value;
+      const amt = parseFloat(row.querySelector('.tx-split-amt').value) || 0;
+      return {
+        category_id: catId ? parseInt(catId) : null,
+        amount: isExpense ? -Math.abs(amt) : Math.abs(amt),
+      };
+    }).filter(s => s.category_id && s.amount !== 0);
+    const splitTotal = splits.reduce((a, s) => a + Math.abs(s.amount), 0);
+    if (Math.abs(splitTotal - Math.abs(amount)) > 0.01) {
+      alert('Split amounts must add up to the transaction total.');
+      return;
+    }
+  }
+
   const payload = {
     date: fd.get('date'),
     description: fd.get('description'),
     amount: amount,
     currency: fd.get('currency'),
     account_id: parseInt(fd.get('account_id')),
-    category_id: fd.get('category_id') ? parseInt(fd.get('category_id')) : null,
+    category_id: isSplit ? null : (fd.get('category_id') ? parseInt(fd.get('category_id')) : null),
     notes: fd.get('notes') || '',
     tags: fd.get('tags') || '',
     transaction_type: isExpense ? 'expense' : 'income',
+    splits: splits,
   };
-  await apiPost('/api/transactions', payload);
+
+  if (editingTxId) {
+    await fetch(API + `/api/transactions/${editingTxId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } else {
+    await apiPost('/api/transactions', payload);
+  }
   closeTxModal();
   e.target.reset();
   if (currentView === 'transactions') renderView('transactions');
   else if (currentView === 'dashboard') renderView('dashboard');
+}
+
+async function editTransaction(id) {
+  const tx = await apiGet(`/api/transactions/${id}`);
+  if (!tx) return;
+  openTxModal({
+    id: tx.id,
+    date: tx.date,
+    amount: tx.amount,
+    description: tx.description,
+    account_id: tx.account_id,
+    category_id: tx.category_id,
+    currency: tx.currency,
+    notes: tx.notes,
+    tags: tx.tags,
+    is_expense: tx.amount < 0,
+    splits: tx.splits,
+  });
 }
 
 // ============== TEMPLATES ==============

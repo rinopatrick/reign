@@ -33,6 +33,18 @@ class CategoryOut(CategoryCreate):
     id: int
 
 
+class SplitCreate(BaseModel):
+    category_id: int
+    amount: Decimal
+    description: str | None = None
+
+
+class SplitOut(SplitCreate):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    category: CategoryOut | None = None
+
+
 class TransactionCreate(BaseModel):
     date: date
     description: str
@@ -43,6 +55,7 @@ class TransactionCreate(BaseModel):
     transaction_type: str = "expense"
     account_id: int
     category_id: int | None = None
+    splits: list[SplitCreate] | None = None
 
 
 class TransactionOut(TransactionCreate):
@@ -52,6 +65,7 @@ class TransactionOut(TransactionCreate):
     is_reconciled: bool = False
     created_at: datetime
     category: CategoryOut | None = None
+    splits: list[SplitOut] = []
 
 
 class TransferCreate(BaseModel):

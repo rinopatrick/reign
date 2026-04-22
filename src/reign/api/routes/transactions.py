@@ -18,7 +18,7 @@ from reign.api.schemas import (
     TransactionOut,
     TransferCreate,
 )
-from reign.domain.models import Transaction
+from reign.domain.models import Transaction, TransactionSplit
 from reign.exceptions import CSVParseError, NotFoundError
 from reign.services.categorizer import categorize_transactions
 from reign.services.csv_parser import parse_csv
@@ -56,8 +56,62 @@ async def create_transaction(
     data: TransactionCreate, session: AsyncSession = Depends(get_session)
 ):
     repo = TransactionRepository(session)
-    tx = Transaction(**data.model_dump())
-    return await repo.create(tx)
+    tx = Transaction(**{k: v for k, v in data.model_dump().items() if k != "splits"})
+    splits = None
+    if data.splits:
+        splits = [
+            TransactionSplit(
+                category_id=s.category_id,
+                amount=s.amount,
+                description=s.description,
+            )
+            for s in data.splits
+        ]
+    return await repo.create(tx, splits=splits)
+
+
+@router.get("/{transaction_id}", response_model=TransactionOut)
+async def get_transaction(
+    transaction_id: int, session: AsyncSession = Depends(get_session)
+):
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+    result = await session.execute(
+        select(Transaction)
+        .options(
+            selectinload(Transaction.category),
+            selectinload(Transaction.splits).selectinload(TransactionSplit.category),
+        )
+        .where(Transaction.id == transaction_id)
+    )
+    tx = result.scalar_one_or_none()
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    return tx
+
+
+@router.put("/{transaction_id}", response_model=TransactionOut)
+async def update_transaction(
+    transaction_id: int,
+    data: TransactionCreate,
+    session: AsyncSession = Depends(get_session),
+):
+    repo = TransactionRepository(session)
+    update_data = {k: v for k, v in data.model_dump().items() if k != "splits"}
+    splits = None
+    if data.splits is not None:
+        splits = [
+            TransactionSplit(
+                category_id=s.category_id,
+                amount=s.amount,
+                description=s.description,
+            )
+            for s in data.splits
+        ]
+    try:
+        return await repo.update(transaction_id, update_data, splits=splits)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.post("/transfer", status_code=201)
