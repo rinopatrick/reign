@@ -7,19 +7,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from sovereign_ledger.adapters.database import AsyncSessionLocal, init_db
-from sovereign_ledger.api.routes.accounts import router as accounts_router
-from sovereign_ledger.api.routes.backup import router as backup_router
-from sovereign_ledger.api.routes.budgets import router as budgets_router
-from sovereign_ledger.api.routes.categories import router as categories_router
-from sovereign_ledger.api.routes.dashboard import router as dashboard_router
-from sovereign_ledger.api.routes.forecast import router as forecast_router
-from sovereign_ledger.api.routes.goals import router as goals_router
-from sovereign_ledger.api.routes.recurring import router as recurring_router
-from sovereign_ledger.api.routes.reports import router as reports_router
-from sovereign_ledger.api.routes.transactions import router as transactions_router
-from sovereign_ledger.logging import setup_logging
-from sovereign_ledger.utils.seed import seed_categories, seed_demo_account
+from reign.adapters.database import AsyncSessionLocal, init_db
+from reign.api.routes.accounts import router as accounts_router
+from reign.api.routes.backup import router as backup_router
+from reign.api.routes.budgets import router as budgets_router
+from reign.api.routes.categories import router as categories_router
+from reign.api.routes.dashboard import router as dashboard_router
+from reign.api.routes.forecast import router as forecast_router
+from reign.api.routes.goals import router as goals_router
+from reign.api.routes.recurring import router as recurring_router
+from reign.api.routes.reports import router as reports_router
+from reign.api.routes.transactions import router as transactions_router
+from reign.logging import setup_logging
+from reign.utils.seed import seed_categories, seed_demo_account
 
 
 @asynccontextmanager
@@ -57,7 +57,7 @@ app.include_router(backup_router, prefix="/api", tags=["backup"])
 app.include_router(reports_router, prefix="/api/reports", tags=["reports"])
 app.include_router(recurring_router, prefix="/api/recurring", tags=["recurring"])
 
-app.mount("/static", StaticFiles(directory="src/sovereign_ledger/static"), name="static")
+app.mount("/static", StaticFiles(directory="src/reign/static"), name="static")
 
 
 @app.get("/health")
@@ -67,4 +67,4 @@ async def health_check():
 
 @app.get("/")
 async def root():
-    return FileResponse("src/sovereign_ledger/static/index.html")
+    return FileResponse("src/reign/static/index.html")

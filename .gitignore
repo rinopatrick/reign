@@ -9,7 +9,7 @@ venv/
 .env
 *.sqlite3
 *.db
-sovereign-ledger.db
+reign.db
 .ruff_cache/
 .pytest_cache/
 .mypy_cache/

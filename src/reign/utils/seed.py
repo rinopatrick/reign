@@ -5,7 +5,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sovereign_ledger.domain.models import Account, Category
+from reign.domain.models import Account, Category
 
 DEFAULT_CATEGORIES = [
     # Income

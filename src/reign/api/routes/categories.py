@@ -2,10 +2,10 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sovereign_ledger.adapters.database import get_session
-from sovereign_ledger.adapters.repository import CategoryRepository
-from sovereign_ledger.api.schemas import CategoryCreate, CategoryOut
-from sovereign_ledger.domain.models import Category
+from reign.adapters.database import get_session
+from reign.adapters.repository import CategoryRepository
+from reign.api.schemas import CategoryCreate, CategoryOut
+from reign.domain.models import Category
 
 router = APIRouter()
 

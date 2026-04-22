@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-reign = "sovereign_ledger.__main__:main"
+reign = "reign.__main__:main"
 
 [dependency-groups]
 dev = [
@@ -54,13 +54,13 @@ ignore = ["E501", "S101", "COM812", "ISC001", "B008", "TC002", "TC003"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*" = ["S101", "SLF001", "ARG001", "PLR2004"]
 "__init__.py" = ["F401"]
-"src/sovereign_ledger/__main__.py" = ["S104"]
-"src/sovereign_ledger/services/csv_parser.py" = ["ERA001", "PLR0912"]
-"src/sovereign_ledger/adapters/repository.py" = ["PLR0913", "E712", "PLC0415"]
-"src/sovereign_ledger/api/routes/transactions.py" = ["PLR0913"]
-"src/sovereign_ledger/api/routes/budgets.py" = ["PLC0415"]
-"src/sovereign_ledger/api/routes/forecast.py" = ["PLC0415"]
-"src/sovereign_ledger/api/routes/backup.py" = ["B904"]
+"src/reign/__main__.py" = ["S104"]
+"src/reign/services/csv_parser.py" = ["ERA001", "PLR0912"]
+"src/reign/adapters/repository.py" = ["PLR0913", "E712", "PLC0415"]
+"src/reign/api/routes/transactions.py" = ["PLR0913"]
+"src/reign/api/routes/budgets.py" = ["PLC0415"]
+"src/reign/api/routes/forecast.py" = ["PLC0415"]
+"src/reign/api/routes/backup.py" = ["B904"]
 
 [tool.ruff.lint.isort]
 combine-as-imports = true

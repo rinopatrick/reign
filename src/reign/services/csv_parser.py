@@ -6,7 +6,7 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from io import StringIO
 
-from sovereign_ledger.exceptions import CSVParseError
+from reign.exceptions import CSVParseError
 
 # Format: (detector, parser)
 BankFormat = tuple[Callable[[list[str]], bool], Callable[[list[dict]], list[dict]]]

@@ -6,9 +6,9 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sovereign_ledger.adapters.database import get_session
-from sovereign_ledger.adapters.repository import TransactionRepository
-from sovereign_ledger.services.pdf_generator import generate_monthly_report
+from reign.adapters.database import get_session
+from reign.adapters.repository import TransactionRepository
+from reign.services.pdf_generator import generate_monthly_report
 
 router = APIRouter()
 

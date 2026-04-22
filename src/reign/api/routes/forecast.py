@@ -4,9 +4,9 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sovereign_ledger.adapters.database import get_session
-from sovereign_ledger.adapters.repository import RecurringRepository, TransactionRepository
-from sovereign_ledger.api.schemas import ForecastResponse
+from reign.adapters.database import get_session
+from reign.adapters.repository import RecurringRepository, TransactionRepository
+from reign.api.schemas import ForecastResponse
 
 router = APIRouter()
 
@@ -30,7 +30,7 @@ async def get_forecast(
             "net": summary["net"],
         })
     recurring = await rec_repo.list_active()
-    from sovereign_ledger.api.schemas import RecurringOut
+    from reign.api.schemas import RecurringOut
     return ForecastResponse(
         months=months,
         recurring=[RecurringOut.model_validate(r) for r in recurring],

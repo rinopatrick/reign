@@ -3,8 +3,8 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sovereign_ledger.adapters.repository import CategoryRepository
-from sovereign_ledger.domain.models import Category, Transaction
+from reign.adapters.repository import CategoryRepository
+from reign.domain.models import Category, Transaction
 
 
 def match_category(description: str, categories: list[Category]) -> int | None:

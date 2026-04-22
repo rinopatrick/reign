@@ -2,11 +2,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sovereign_ledger.adapters.database import get_session
-from sovereign_ledger.adapters.repository import RecurringRepository
-from sovereign_ledger.api.schemas import RecurringCreate, RecurringOut
-from sovereign_ledger.domain.models import RecurringTransaction
-from sovereign_ledger.exceptions import NotFoundError
+from reign.adapters.database import get_session
+from reign.adapters.repository import RecurringRepository
+from reign.api.schemas import RecurringCreate, RecurringOut
+from reign.domain.models import RecurringTransaction
+from reign.exceptions import NotFoundError
 
 router = APIRouter()
 

@@ -4,9 +4,9 @@ from datetime import datetime
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sovereign_ledger.adapters.database import get_session
-from sovereign_ledger.adapters.repository import AccountRepository, TransactionRepository
-from sovereign_ledger.api.schemas import CategoryTotal, DashboardSummary, TrendPoint
+from reign.adapters.database import get_session
+from reign.adapters.repository import AccountRepository, TransactionRepository
+from reign.api.schemas import CategoryTotal, DashboardSummary, TrendPoint
 
 router = APIRouter()
 

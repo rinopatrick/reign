@@ -3,7 +3,7 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from sovereign_ledger.api.app import app
+from reign.api.app import app
 
 
 @pytest.fixture

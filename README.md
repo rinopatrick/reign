@@ -84,7 +84,7 @@ git clone https://github.com/rinopatrick/reign.git
 cd reign
 
 # 2. Run (uv automatically creates venv + installs deps)
-uv run python -m sovereign_ledger
+uv run python -m reign
 
 # 3. Open browser
 # http://localhost:8000
@@ -114,7 +114,7 @@ reign/
 └── ...
 ```
 
-- **Backup:** Click "Backup Data" in the sidebar → downloads `sovereign_ledger_backup_YYYY-MM-DD.json`
+- **Backup:** Click "Backup Data" in the sidebar → downloads `reign_backup_YYYY-MM-DD.json`
 - **Restore:** Click "Restore Data" → select JSON backup file
 - **Migrate:** The app auto-creates tables on first run. For schema upgrades, run:
   ```bash
@@ -132,7 +132,7 @@ The database file is 100% portable. Copy it between devices, back it up to your 
 uv run pytest
 
 # Type checking
-uv run mypy src/sovereign_ledger
+uv run mypy src/reign
 
 # Lint
 uv run ruff check src/
@@ -144,7 +144,7 @@ uv run ruff check src/
 
 ```
 reign/
-├── src/sovereign_ledger/
+├── src/reign/
 │   ├── api/
 │   │   ├── app.py              # FastAPI factory
 │   │   ├── schemas.py          # Pydantic models

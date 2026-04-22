@@ -7,7 +7,7 @@ from typing import Optional
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from sovereign_ledger.adapters.database import Base
+from reign.adapters.database import Base
 
 
 class Account(Base):

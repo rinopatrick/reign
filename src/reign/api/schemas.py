@@ -6,6 +6,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+_Date = date
+
 
 class AccountCreate(BaseModel):
     name: str
@@ -147,7 +149,7 @@ class BulkIds(BaseModel):
 class BulkUpdate(BaseModel):
     ids: list[int]
     category_id: int | None = None
-    date: Optional[date] = None
+    date: _Date | None = None
 
 
 class CSVImportResponse(BaseModel):
@@ -159,7 +161,7 @@ class CSVImportResponse(BaseModel):
 class TransactionListParams(BaseModel):
     account_id: int | None = None
     category_id: int | None = None
-    start_date: date | None = None
-    end_date: date | None = None
+    start_date: _Date | None = None
+    end_date: _Date | None = None
     limit: int = 500
     offset: int = 0

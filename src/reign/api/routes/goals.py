@@ -2,11 +2,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sovereign_ledger.adapters.database import get_session
-from sovereign_ledger.adapters.repository import GoalRepository
-from sovereign_ledger.api.schemas import GoalCreate, GoalOut
-from sovereign_ledger.domain.models import Goal
-from sovereign_ledger.exceptions import NotFoundError
+from reign.adapters.database import get_session
+from reign.adapters.repository import GoalRepository
+from reign.api.schemas import GoalCreate, GoalOut
+from reign.domain.models import Goal
+from reign.exceptions import NotFoundError
 
 router = APIRouter()
 

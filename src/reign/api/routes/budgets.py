@@ -2,10 +2,10 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sovereign_ledger.adapters.database import get_session
-from sovereign_ledger.adapters.repository import BudgetRepository
-from sovereign_ledger.api.schemas import BudgetCreate, BudgetOut
-from sovereign_ledger.domain.models import Budget
+from reign.adapters.database import get_session
+from reign.adapters.repository import BudgetRepository
+from reign.api.schemas import BudgetCreate, BudgetOut
+from reign.domain.models import Budget
 
 router = APIRouter()
 
@@ -17,7 +17,7 @@ async def list_budgets(
     repo = BudgetRepository(session)
     budgets = await repo.list(year, month)
     # Compute spent per budget
-    from sovereign_ledger.adapters.repository import TransactionRepository
+    from reign.adapters.repository import TransactionRepository
     tx_repo = TransactionRepository(session)
     for b in budgets:
         summary = await tx_repo.get_category_totals(year, month, b.currency)

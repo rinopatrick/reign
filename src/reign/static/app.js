@@ -1221,7 +1221,7 @@ async function exportBackup() {
   const blob = await r.blob();
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `sovereign_ledger_backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.download = `reign_backup_${new Date().toISOString().slice(0,10)}.json`;
   a.click();
 }
 

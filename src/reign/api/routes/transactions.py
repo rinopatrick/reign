@@ -8,9 +8,9 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sovereign_ledger.adapters.database import get_session
-from sovereign_ledger.adapters.repository import TransactionRepository
-from sovereign_ledger.api.schemas import (
+from reign.adapters.database import get_session
+from reign.adapters.repository import TransactionRepository
+from reign.api.schemas import (
     BulkIds,
     BulkUpdate,
     CSVImportResponse,
@@ -18,10 +18,10 @@ from sovereign_ledger.api.schemas import (
     TransactionOut,
     TransferCreate,
 )
-from sovereign_ledger.domain.models import Transaction
-from sovereign_ledger.exceptions import CSVParseError, NotFoundError
-from sovereign_ledger.services.categorizer import categorize_transactions
-from sovereign_ledger.services.csv_parser import parse_csv
+from reign.domain.models import Transaction
+from reign.exceptions import CSVParseError, NotFoundError
+from reign.services.categorizer import categorize_transactions
+from reign.services.csv_parser import parse_csv
 
 router = APIRouter()
 

@@ -9,7 +9,7 @@ from sqlalchemy import extract, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from sovereign_ledger.domain.models import (
+from reign.domain.models import (
     Account,
     Budget,
     Category,
@@ -17,7 +17,7 @@ from sovereign_ledger.domain.models import (
     RecurringTransaction,
     Transaction,
 )
-from sovereign_ledger.exceptions import NotFoundError
+from reign.exceptions import NotFoundError
 
 
 class AccountRepository:

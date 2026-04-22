@@ -7,14 +7,14 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-from sovereign_ledger.adapters.database import AsyncSessionLocal
-from sovereign_ledger.adapters.repository import (
+from reign.adapters.database import AsyncSessionLocal
+from reign.adapters.repository import (
     AccountRepository,
     CategoryRepository,
     GoalRepository,
     TransactionRepository,
 )
-from sovereign_ledger.domain.models import Account, Category, Goal, Transaction
+from reign.domain.models import Account, Category, Goal, Transaction
 
 router = APIRouter()
 
