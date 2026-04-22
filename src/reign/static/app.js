@@ -113,6 +113,7 @@ async function renderView(view) {
     else if (view === 'forecast') await renderForecast(content);
     else if (view === 'calendar') await renderCalendar(content);
     else if (view === 'recurring') await renderRecurring(content);
+    else if (view === 'settings') await renderSettings(content);
   } catch (e) {
     content.innerHTML = `<div class="text-red-500">Error: ${e.message}</div>`;
   }
@@ -1212,6 +1213,100 @@ async function generateReport() {
   a.href = URL.createObjectURL(blob);
   a.download = `report_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}_IDR.pdf`;
   a.click();
+}
+
+// ============== SETTINGS ==============
+async function renderSettings(container) {
+  const settings = await apiGet('/api/settings');
+  const enabled = (settings.auto_backup_enabled || 'false').toLowerCase() === 'true';
+  const interval = settings.auto_backup_interval_days || '7';
+  const lastRun = settings.auto_backup_last_run || 'Never';
+
+  container.innerHTML = `
+    <div class="max-w-xl mx-auto space-y-6">
+      <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-6 shadow-sm">
+        <h3 class="text-sm font-semibold mb-4 dark:text-gray-200 flex items-center gap-2">
+          <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0l-4 4m4-4v12"/></svg>
+          Scheduled Backups
+        </h3>
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium dark:text-gray-200">Enable Auto-Backup</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">Automatically save backups to the backups/ folder</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="auto-backup-toggle" class="sr-only peer" ${enabled ? 'checked' : ''} onchange="toggleAutoBackup()">
+              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 dark:text-gray-400">Backup Interval</label>
+            <select id="backup-interval" class="w-full text-sm border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 mt-1" onchange="changeBackupInterval()">
+              <option value="1" ${interval === '1' ? 'selected' : ''}>Daily</option>
+              <option value="7" ${interval === '7' ? 'selected' : ''}>Weekly</option>
+              <option value="30" ${interval === '30' ? 'selected' : ''}>Monthly</option>
+            </select>
+          </div>
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-gray-500 dark:text-gray-400">Last backup:</span>
+            <span class="font-medium dark:text-gray-200">${lastRun === 'Never' ? 'Never' : new Date(lastRun).toLocaleString()}</span>
+          </div>
+          <button onclick="triggerBackupNow()" class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0l-4 4m4-4v12"/></svg>
+            Backup Now
+          </button>
+          <p class="text-xs text-gray-400 dark:text-gray-500">Backups are saved to <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">backups/</code> in the app folder. Maximum ${10} auto-backups are kept.</p>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-6 shadow-sm">
+        <h3 class="text-sm font-semibold mb-4 dark:text-gray-200 flex items-center gap-2">
+          <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          About
+        </h3>
+        <div class="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+          <p><strong>Reign</strong> &mdash; Local-first personal finance tracker.</p>
+          <p>Version 0.2.0</p>
+          <p>Your data is stored locally in <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">reign.db</code>. No cloud, no accounts, no subscriptions.</p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function toggleAutoBackup() {
+  const enabled = document.getElementById('auto-backup-toggle').checked;
+  await fetch(API + '/api/settings/auto_backup_enabled', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ value: enabled ? 'true' : 'false' }),
+  });
+}
+
+async function changeBackupInterval() {
+  const interval = document.getElementById('backup-interval').value;
+  await fetch(API + '/api/settings/auto_backup_interval_days', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ value: interval }),
+  });
+}
+
+async function triggerBackupNow() {
+  const btn = document.activeElement;
+  btn.disabled = true;
+  btn.innerHTML = 'Backing up...';
+  try {
+    const r = await fetch(API + '/api/backup/trigger', { method: 'POST' });
+    const result = await r.json();
+    alert(result.message);
+    renderView('settings');
+  } catch (e) {
+    alert('Backup failed: ' + e.message);
+  }
+  btn.disabled = false;
+  btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0l-4 4m4-4v12"/></svg> Backup Now`;
 }
 
 // ============== BACKUP ==============

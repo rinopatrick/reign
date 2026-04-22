@@ -26,3 +26,4 @@ frontend/.next/
 frontend/out/
 frontend/node_modules/
 migrate.py
+backups/

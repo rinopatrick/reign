@@ -112,3 +112,14 @@ class RecurringTransaction(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     category: Mapped[Optional["Category"]] = relationship()
+
+
+class AppSetting(Base):
+    """Application key-value settings."""
+
+    __tablename__ = "app_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    key: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
+    value: Mapped[str | None] = mapped_column(Text, default="")
+

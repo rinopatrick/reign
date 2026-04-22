@@ -92,12 +92,25 @@ uv run python -m reign
 
 That's it. No `pip install`, no `requirements.txt` manual setup. `uv` handles everything.
 
-### Install as Tool
+### Easy Launch (No Terminal Typing)
+
+Don't want to type commands every time? Use the included launcher:
+
+| OS | What to do |
+|----|-----------|
+| **Windows** | Double-click `start.bat` |
+| **macOS / Linux** | Double-click `start.sh` (or right-click → Open) |
+
+Both scripts will start the app and print the address. Just open `http://localhost:8000` in your browser.
+
+> **Tip:** You can bookmark the address. The app stays running until you close the terminal window.
+
+### Install as Tool (Advanced)
 
 ```bash
 uv tool install git+https://github.com/rinopatrick/reign.git
 
-# Then run anytime:
+# Then run anytime from anywhere:
 reign
 ```
 
@@ -109,12 +122,14 @@ Your data lives in a single SQLite file in the project directory:
 
 ```
 reign/
-├── reign.db   <-- Your data is here
+├── reign.db          <-- Your data
+├── backups/          <-- Auto-backups land here
 ├── src/
 └── ...
 ```
 
-- **Backup:** Click "Backup Data" in the sidebar → downloads `reign_backup_YYYY-MM-DD.json`
+- **Manual backup:** Click "Backup Data" in the sidebar → downloads `reign_backup_YYYY-MM-DD.json`
+- **Scheduled backup:** Go to **Settings → Scheduled Backups** → enable auto-backup (daily / weekly / monthly). Backups are saved to the `backups/` folder automatically.
 - **Restore:** Click "Restore Data" → select JSON backup file
 - **Migrate:** The app auto-creates tables on first run. For schema upgrades, run:
   ```bash
@@ -183,7 +198,7 @@ reign/
 - [ ] Bank statement import (OFX/QFX)
 - [ ] Reconciliation with bank statements
 - [ ] Multi-user support (local profiles)
-- [ ] Scheduled backups
+- [x] **Scheduled backups** ✓
 - [ ] Mobile PWA support
 - [ ] Investment/Stock tracking
 - [ ] Split transactions

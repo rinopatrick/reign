@@ -1,5 +1,6 @@
 """FastAPI application factory."""
 
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -9,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from reign.adapters.database import AsyncSessionLocal, init_db
 from reign.api.routes.accounts import router as accounts_router
-from reign.api.routes.backup import router as backup_router
+from reign.api.routes.backup import backup_scheduler, router as backup_router
 from reign.api.routes.budgets import router as budgets_router
 from reign.api.routes.categories import router as categories_router
 from reign.api.routes.dashboard import router as dashboard_router
@@ -17,6 +18,7 @@ from reign.api.routes.forecast import router as forecast_router
 from reign.api.routes.goals import router as goals_router
 from reign.api.routes.recurring import router as recurring_router
 from reign.api.routes.reports import router as reports_router
+from reign.api.routes.settings import router as settings_router
 from reign.api.routes.transactions import router as transactions_router
 from reign.logging import setup_logging
 from reign.utils.seed import seed_categories, seed_demo_account
@@ -29,6 +31,8 @@ async def lifespan(_app: FastAPI):
     async with AsyncSessionLocal() as session:
         await seed_categories(session)
         await seed_demo_account(session)
+    # Start background backup scheduler
+    asyncio.create_task(backup_scheduler())
     yield
 
 
@@ -56,6 +60,7 @@ app.include_router(forecast_router, prefix="/api/forecast", tags=["forecast"])
 app.include_router(backup_router, prefix="/api", tags=["backup"])
 app.include_router(reports_router, prefix="/api/reports", tags=["reports"])
 app.include_router(recurring_router, prefix="/api/recurring", tags=["recurring"])
+app.include_router(settings_router, prefix="/api/settings", tags=["settings"])
 
 app.mount("/static", StaticFiles(directory="src/reign/static"), name="static")
 
