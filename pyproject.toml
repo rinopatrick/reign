@@ -1,6 +1,6 @@
 [project]
 name = "reign"
-version = "0.2.0"
+version = "0.3.0"
 description = "Local-first personal finance dashboard"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -52,17 +52,14 @@ select = [
     "TCH", "ARG", "PTH", "ERA", "PL", "RUF", "PERF", "FBT",
 ]
 ignore = ["E501", "S101", "COM812", "ISC001", "B008", "TC002", "TC003"]
+# B008: FastAPI Depends()/File() in defaults is the official framework idiom.
+# TC002/TC003: import-placement style only, zero runtime effect with
+# `from __future__ import annotations` already in use.
 
 [tool.ruff.lint.per-file-ignores]
+# Tests only: pytest asserts, fixtures, magic numbers in test data are idiomatic.
+# No src/ ignores — production code must be clean without waivers.
 "tests/**/*" = ["S101", "SLF001", "ARG001", "PLR2004"]
-"__init__.py" = ["F401"]
-"src/reign/__main__.py" = ["S104"]
-"src/reign/services/csv_parser.py" = ["ERA001", "PLR0912"]
-"src/reign/adapters/repository.py" = ["PLR0913", "E712", "PLC0415"]
-"src/reign/api/routes/transactions.py" = ["PLR0913"]
-"src/reign/api/routes/budgets.py" = ["PLC0415"]
-"src/reign/api/routes/forecast.py" = ["PLC0415"]
-"src/reign/api/routes/backup.py" = ["B904"]
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
