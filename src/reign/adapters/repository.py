@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import date, timedelta
+from dataclasses import dataclass
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import extract, func, or_, select
@@ -19,7 +20,24 @@ from reign.domain.models import (
     Transaction,
     TransactionSplit,
 )
+from reign.domain.period import Period
 from reign.exceptions import NotFoundError
+
+
+@dataclass
+class TransactionListFilter:
+    """Bundled transaction list filters (keeps the repository signature small)."""
+
+    account_id: int | None = None
+    category_id: int | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    q: str | None = None
+    tag: str | None = None
+    include_deleted: bool = False
+    limit: int = 500
+    offset: int = 0
+    after_id: int | None = None
 
 
 class AccountRepository:
@@ -83,53 +101,44 @@ class TransactionRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def list(
-        self,
-        *,
-        account_id: int | None = None,
-        category_id: int | None = None,
-        start_date: date | None = None,
-        end_date: date | None = None,
-        q: str | None = None,
-        tag: str | None = None,
-        include_deleted: bool = False,
-        limit: int = 500,
-        offset: int = 0,
-    ) -> Sequence[Transaction]:
+    async def list(self, filters: TransactionListFilter | None = None) -> Sequence[Transaction]:
+        f = filters or TransactionListFilter()
         stmt = (
             select(Transaction)
             .options(
                 selectinload(Transaction.category),
                 selectinload(Transaction.splits).selectinload(TransactionSplit.category),
             )
-            .order_by(Transaction.date.desc())
+            .order_by(Transaction.id.desc())
         )
-        if not include_deleted:
-            stmt = stmt.where(Transaction.is_deleted == False)
-        if account_id:
-            stmt = stmt.where(Transaction.account_id == account_id)
-        if category_id:
+        if f.after_id is not None:
+            stmt = stmt.where(Transaction.id < f.after_id)
+        if not f.include_deleted:
+            stmt = stmt.where(Transaction.is_deleted.is_(False))
+        if f.account_id:
+            stmt = stmt.where(Transaction.account_id == f.account_id)
+        if f.category_id:
             stmt = stmt.where(
                 or_(
-                    Transaction.category_id == category_id,
-                    Transaction.splits.any(TransactionSplit.category_id == category_id),
+                    Transaction.category_id == f.category_id,
+                    Transaction.splits.any(TransactionSplit.category_id == f.category_id),
                 )
             )
-        if start_date:
-            stmt = stmt.where(Transaction.date >= start_date)
-        if end_date:
-            stmt = stmt.where(Transaction.date <= end_date)
-        if q:
+        if f.start_date:
+            stmt = stmt.where(Transaction.date >= f.start_date)
+        if f.end_date:
+            stmt = stmt.where(Transaction.date <= f.end_date)
+        if f.q:
             stmt = stmt.where(
                 or_(
-                    Transaction.description.ilike(f"%{q}%"),
-                    Transaction.notes.ilike(f"%{q}%"),
-                    Transaction.tags.ilike(f"%{q}%"),
+                    Transaction.description.ilike(f"%{f.q}%"),
+                    Transaction.notes.ilike(f"%{f.q}%"),
+                    Transaction.tags.ilike(f"%{f.q}%"),
                 )
             )
-        if tag:
-            stmt = stmt.where(Transaction.tags.ilike(f"%{tag}%"))
-        result = await self._session.execute(stmt.limit(limit).offset(offset))
+        if f.tag:
+            stmt = stmt.where(Transaction.tags.ilike(f"%{f.tag}%"))
+        result = await self._session.execute(stmt.limit(f.limit).offset(f.offset))
         return result.scalars().all()
 
     async def create(
@@ -258,7 +267,7 @@ class TransactionRepository:
             .where(extract("year", Transaction.date) == year)
             .where(extract("month", Transaction.date) == month)
             .where(Transaction.currency == currency)
-            .where(Transaction.is_deleted == False)
+            .where(Transaction.is_deleted.is_(False))
             .where(Transaction.transaction_type != "transfer")
         )
         income = (await self._session.execute(base.where(Transaction.amount > 0))).scalar_one()
@@ -268,6 +277,31 @@ class TransactionRepository:
             "expense": expense,
             "net": income + expense,
         }
+
+    async def get_balance_total(self, currency: str = "IDR") -> Decimal:
+        """Sum of all non-deleted, non-transfer amounts for net-worth."""
+        stmt = (
+            select(func.coalesce(func.sum(Transaction.amount), Decimal("0")))
+            .where(Transaction.currency == currency)
+            .where(Transaction.is_deleted.is_(False))
+            .where(Transaction.transaction_type != "transfer")
+        )
+        return (await self._session.execute(stmt)).scalar_one()
+
+    async def get_spent_map(self, year: int, month: int) -> dict[tuple[int, str], Decimal]:
+        """One query for all (category_id, currency) spent. Value is positive."""
+        stmt = (
+            select(Category.id, Transaction.currency, func.sum(Transaction.amount))
+            .join(Transaction, Transaction.category_id == Category.id)
+            .where(extract("year", Transaction.date) == year)
+            .where(extract("month", Transaction.date) == month)
+            .where(Transaction.amount < 0)
+            .where(Transaction.is_deleted.is_(False))
+            .where(Transaction.transaction_type != "transfer")
+            .group_by(Category.id, Transaction.currency)
+        )
+        rows = (await self._session.execute(stmt)).all()
+        return {(cid, cur): abs(total) for cid, cur, total in rows if total is not None}
 
     async def get_category_totals(
         self, year: int, month: int, currency: str = "IDR"
@@ -280,7 +314,7 @@ class TransactionRepository:
             .where(extract("month", Transaction.date) == month)
             .where(Transaction.currency == currency)
             .where(Transaction.amount < 0)
-            .where(Transaction.is_deleted == False)
+            .where(Transaction.is_deleted.is_(False))
             .where(Transaction.transaction_type != "transfer")
             .group_by(Category.name)
             .order_by(func.sum(Transaction.amount))
@@ -289,19 +323,19 @@ class TransactionRepository:
         return result.all()
 
     async def get_monthly_trends(self, months: int = 6, currency: str = "IDR") -> list[dict]:
-        """Return income/expense per month for the last N months."""
-        from datetime import datetime
-
+        """Return income/expense per month for the last N months (calendar-correct)."""
         now = datetime.now()
+        current = Period.from_raw(now.year, now.month, currency)
+        start = current.add_months(-(months - 1))
         results = []
-        for i in range(months - 1, -1, -1):
-            d = now.replace(day=1) - timedelta(days=i * 30)
-            summary = await self.get_summary(d.year, d.month, currency)
+        for j in range(months):
+            p = start.add_months(j)
+            summary = await self.get_summary(p.year, p.month, p.as_currency_str())
             results.append(
                 {
-                    "label": d.strftime("%b %Y"),
-                    "year": d.year,
-                    "month": d.month,
+                    "label": p.label(),
+                    "year": p.year,
+                    "month": p.month,
                     "income": summary["income"],
                     "expense": summary["expense"],
                     "net": summary["net"],
@@ -394,7 +428,7 @@ class RecurringRepository:
         result = await self._session.execute(
             select(RecurringTransaction)
             .options(selectinload(RecurringTransaction.category))
-            .where(RecurringTransaction.active == True)
+            .where(RecurringTransaction.active.is_(True))
         )
         return result.scalars().all()
 

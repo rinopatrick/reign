@@ -8,7 +8,6 @@ from io import StringIO
 
 from reign.exceptions import CSVParseError
 
-# Format: (detector, parser)
 BankFormat = tuple[Callable[[list[str]], bool], Callable[[list[dict]], list[dict]]]
 
 
@@ -116,43 +115,26 @@ def _detect_generic(header: list[str]) -> bool:
     return has_date and has_desc and has_amount
 
 
-def _parse_generic(rows: list[dict]) -> list[dict]:
-    out: list[dict] = []
-    if not rows:
-        return out
-    keys = list(rows[0].keys())
-    date_key = next((k for k in keys if "date" in k.lower() or "tanggal" in k.lower()), None)
-    desc_key = next(
-        (k for k in keys if any(x in k.lower() for x in ("desc", "keterangan", "narrative"))), None
-    )
-    amt_key = next((k for k in keys if "amount" in k.lower()), None)
-    debit_key = next((k for k in keys if "debit" in k.lower()), None)
-    credit_key = next((k for k in keys if "credit" in k.lower()), None)
+GENERIC_DATE_FORMATS = ("%d/%m/%Y", "%Y-%m-%d", "%m/%d/%Y", "%d-%m-%Y")
 
-    for row in rows:
-        date_str = row.get(date_key, "").strip() if date_key else ""
-        desc = row.get(desc_key, "").strip() if desc_key else ""
-        if not date_str or not desc:
-            continue
-        # Try multiple date formats
-        dt = None
-        for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%m/%d/%Y", "%d-%m-%Y"):
-            try:
-                dt = datetime.strptime(date_str, fmt)
-                break
-            except ValueError:
-                continue
-        if not dt:
-            continue
 
-        amount = Decimal("0")
+def _parse_flexible_date(date_str: str):
+    """Try known date formats, return datetime or None."""
+    for fmt in GENERIC_DATE_FORMATS:
+        try:
+            return datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _parse_generic_amount(row: dict, amt_key, debit_key, credit_key):
+    """Return Decimal amount or None when the row has no usable amount."""
+    try:
         if amt_key:
             amt_clean = row.get(amt_key, "").strip().replace(",", "")
-            try:
-                amount = Decimal(amt_clean)
-            except InvalidOperation:
-                continue
-        elif debit_key or credit_key:
+            return Decimal(amt_clean)
+        if debit_key or credit_key:
             debit = (
                 row.get(debit_key, "").strip().replace(",", "").replace(".", "")
                 if debit_key
@@ -163,18 +145,44 @@ def _parse_generic(rows: list[dict]) -> list[dict]:
                 if credit_key
                 else ""
             )
-            try:
-                if debit:
-                    amount = -Decimal(debit)
-                elif credit:
-                    amount = Decimal(credit)
-                else:
-                    continue
-            except InvalidOperation:
-                continue
-        else:
-            continue
+            if debit:
+                return -Decimal(debit)
+            if credit:
+                return Decimal(credit)
+    except InvalidOperation:
+        pass
+    return None
 
+
+def _generic_keys(rows: list[dict]):
+    """Detect date/desc/amount column keys for the generic fallback."""
+    keys = list(rows[0].keys())
+    date_key = next((k for k in keys if "date" in k.lower() or "tanggal" in k.lower()), None)
+    desc_key = next(
+        (k for k in keys if any(x in k.lower() for x in ("desc", "keterangan", "narrative"))), None
+    )
+    amt_key = next((k for k in keys if "amount" in k.lower()), None)
+    debit_key = next((k for k in keys if "debit" in k.lower()), None)
+    credit_key = next((k for k in keys if "credit" in k.lower()), None)
+    return date_key, desc_key, amt_key, debit_key, credit_key
+
+
+def _parse_generic(rows: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    if not rows:
+        return out
+    date_key, desc_key, amt_key, debit_key, credit_key = _generic_keys(rows)
+    for row in rows:
+        date_str = row.get(date_key, "").strip() if date_key else ""
+        desc = row.get(desc_key, "").strip() if desc_key else ""
+        if not date_str or not desc:
+            continue
+        dt = _parse_flexible_date(date_str)
+        if not dt:
+            continue
+        amount = _parse_generic_amount(row, amt_key, debit_key, credit_key)
+        if amount is None:
+            continue
         out.append(
             {
                 "date": dt.date().isoformat(),

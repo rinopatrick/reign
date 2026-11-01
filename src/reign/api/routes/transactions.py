@@ -3,7 +3,6 @@
 import csv
 import io
 import json
-from dataclasses import dataclass
 from datetime import date as date_cls
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -13,55 +12,57 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from reign.adapters.database import get_session
-from reign.adapters.repository import TransactionRepository
+from reign.adapters.repository import (
+    AccountRepository,
+    CategoryRepository,
+    TransactionListFilter,
+    TransactionRepository,
+)
 from reign.api.schemas import (
     BulkIds,
     BulkUpdate,
     CSVImportResponse,
     TransactionCreate,
+    TransactionListParams,
     TransactionOut,
     TransferCreate,
 )
+from reign.config import settings
 from reign.domain.models import Transaction, TransactionSplit
 from reign.exceptions import CSVParseError, NotFoundError
 from reign.services.categorizer import categorize_transactions
 from reign.services.csv_parser import parse_csv
+from reign.services.uploads import read_limited_upload
 
 router = APIRouter()
 
 
-@dataclass
-class TransactionListFilter:
-    account_id: int | None = None
-    category_id: int | None = None
-    start_date: date_cls | None = None
-    end_date: date_cls | None = None
-    q: str | None = None
-    tag: str | None = None
-    limit: int = 500
-    offset: int = 0
-
-
 @router.get("", response_model=list[TransactionOut])
 async def list_transactions(
-    filters: TransactionListFilter = Depends(),
+    params: TransactionListParams = Depends(),
     session: AsyncSession = Depends(get_session),
 ):
     repo = TransactionRepository(session)
-    return await repo.list(
-        account_id=filters.account_id,
-        category_id=filters.category_id,
-        start_date=filters.start_date,
-        end_date=filters.end_date,
-        q=filters.q,
-        tag=filters.tag,
-        limit=filters.limit,
-        offset=filters.offset,
+    filters = TransactionListFilter(
+        account_id=params.account_id,
+        category_id=params.category_id,
+        start_date=params.start_date,
+        end_date=params.end_date,
+        q=params.q,
+        tag=params.tag,
+        limit=params.limit,
+        offset=params.offset,
+        after_id=params.after_id,
     )
+    return await repo.list(filters)
 
 
 @router.post("", response_model=TransactionOut, status_code=201)
 async def create_transaction(data: TransactionCreate, session: AsyncSession = Depends(get_session)):
+    try:
+        await AccountRepository(session).get(data.account_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
     repo = TransactionRepository(session)
     tx = Transaction(**{k: v for k, v in data.model_dump().items() if k != "splits"})
     splits = None
@@ -99,6 +100,10 @@ async def update_transaction(
     data: TransactionCreate,
     session: AsyncSession = Depends(get_session),
 ):
+    try:
+        await AccountRepository(session).get(data.account_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
     repo = TransactionRepository(session)
     update_data = {k: v for k, v in data.model_dump().items() if k != "splits"}
     splits = None
@@ -120,6 +125,13 @@ async def update_transaction(
 @router.post("/transfer", status_code=201)
 async def create_transfer(data: TransferCreate, session: AsyncSession = Depends(get_session)):
     """Create a transfer between two accounts."""
+    if data.from_account_id == data.to_account_id:
+        raise HTTPException(status_code=400, detail="Transfer accounts must differ")
+    try:
+        await AccountRepository(session).get(data.from_account_id)
+        await AccountRepository(session).get(data.to_account_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
     repo = TransactionRepository(session)
     from_tx = Transaction(
         date=data.date,
@@ -174,6 +186,11 @@ async def bulk_reconcile(data: BulkIds, session: AsyncSession = Depends(get_sess
 @router.post("/bulk-update")
 async def bulk_update(data: BulkUpdate, session: AsyncSession = Depends(get_session)):
     repo = TransactionRepository(session)
+    if data.category_id is not None:
+        try:
+            await CategoryRepository(session).get(data.category_id)
+        except NotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
     await repo.bulk_update(data.ids, category_id=data.category_id, date=data.date)
     return {"message": f"Updated {len(data.ids)} transactions"}
 
@@ -185,9 +202,15 @@ async def import_csv(
     session: AsyncSession = Depends(get_session),
 ):
     """Upload a bank CSV and auto-import transactions."""
-    if not file.filename or not file.filename.endswith(".csv"):
+    if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="File must be a CSV")
-    content = await file.read()
+    if file.size is not None and file.size > settings.max_csv_bytes:
+        raise HTTPException(status_code=413, detail="CSV too large (max 5MB)")
+    try:
+        await AccountRepository(session).get(account_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    content = await read_limited_upload(file, settings.max_csv_bytes, "CSV")
     try:
         fmt, parsed = parse_csv(content)
     except CSVParseError as e:
@@ -224,9 +247,11 @@ async def import_csv_preview(
     file: UploadFile = File(...),
 ):
     """Preview a CSV before importing — returns first 10 rows + detected format."""
-    if not file.filename or not file.filename.endswith(".csv"):
+    if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="File must be a CSV")
-    content = await file.read()
+    if file.size is not None and file.size > settings.max_csv_bytes:
+        raise HTTPException(status_code=413, detail="CSV too large (max 5MB)")
+    content = await read_limited_upload(file, settings.max_csv_bytes, "CSV")
     try:
         fmt, parsed = parse_csv(content)
     except CSVParseError as e:
@@ -247,12 +272,10 @@ async def export_csv(
 ):
     """Export transactions as CSV."""
     repo = TransactionRepository(session)
-    txs = await repo.list(
-        account_id=account_id,
-        start_date=start_date,
-        end_date=end_date,
-        limit=2000,
+    filters = TransactionListFilter(
+        account_id=account_id, start_date=start_date, end_date=end_date, limit=2000
     )
+    txs = await repo.list(filters)
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(
@@ -297,12 +320,10 @@ async def export_json(
 ):
     """Export transactions as JSON."""
     repo = TransactionRepository(session)
-    txs = await repo.list(
-        account_id=account_id,
-        start_date=start_date,
-        end_date=end_date,
-        limit=2000,
+    filters = TransactionListFilter(
+        account_id=account_id, start_date=start_date, end_date=end_date, limit=2000
     )
+    txs = await repo.list(filters)
     data = [
         {
             "id": tx.id,

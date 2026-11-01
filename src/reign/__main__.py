@@ -11,7 +11,7 @@ def main() -> None:
     setup_logging(settings.log_level)
     uvicorn.run(
         "reign.api.app:app",
-        host="0.0.0.0",
+        host=settings.host,
         port=8000,
         reload=False,
     )
