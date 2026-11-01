@@ -1,11 +1,12 @@
 """Budget API routes."""
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from reign.adapters.database import get_session
-from reign.adapters.repository import BudgetRepository
+from reign.adapters.repository import BudgetRepository, CategoryRepository, TransactionRepository
 from reign.api.schemas import BudgetCreate, BudgetOut
 from reign.domain.models import Budget
+from reign.exceptions import NotFoundError
 
 router = APIRouter()
 
@@ -17,7 +18,6 @@ async def list_budgets(
     repo = BudgetRepository(session)
     budgets = await repo.list(year, month)
     # Compute spent per budget
-    from reign.adapters.repository import TransactionRepository
     tx_repo = TransactionRepository(session)
     for b in budgets:
         summary = await tx_repo.get_category_totals(year, month, b.currency)
@@ -30,6 +30,10 @@ async def list_budgets(
 async def create_budget(
     data: BudgetCreate, session: AsyncSession = Depends(get_session)
 ):
+    try:
+        await CategoryRepository(session).get(data.category_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
     repo = BudgetRepository(session)
     budget = Budget(**data.model_dump())
     return await repo.create_or_update(budget)

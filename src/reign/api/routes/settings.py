@@ -1,5 +1,5 @@
 """Application settings API routes."""
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +8,14 @@ from reign.adapters.database import get_session
 from reign.domain.models import AppSetting
 
 router = APIRouter()
+
+ALLOWED_SETTING_KEYS = {
+    "auto_backup_enabled",
+    "auto_backup_interval_days",
+    "auto_backup_last_run",
+    "theme",
+    "default_currency",
+}
 
 
 class SettingUpdate(BaseModel):
@@ -39,6 +47,10 @@ async def get_setting(key: str, session: AsyncSession = Depends(get_session)):
 
 @router.put("/{key}")
 async def update_setting(key: str, payload: SettingUpdate, session: AsyncSession = Depends(get_session)):
+    if key not in ALLOWED_SETTING_KEYS:
+        raise HTTPException(status_code=400, detail="Unknown setting key")
+    if len(payload.value) > 256:
+        raise HTTPException(status_code=400, detail="Setting value too long (max 256)")
     result = await session.execute(select(AppSetting).where(AppSetting.key == key))
     setting = result.scalar_one_or_none()
     if setting is None:

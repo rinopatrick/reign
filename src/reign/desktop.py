@@ -1,10 +1,13 @@
 """Desktop entry point — bundles server + browser into one experience."""
 
+import logging
 import os
 import sys
 import time
 import webbrowser
 from pathlib import Path
+
+logger = logging.getLogger("reign.desktop")
 
 
 def get_data_dir() -> Path:
@@ -40,8 +43,10 @@ def main() -> None:
     backups_dir = data_dir / "backups"
     backups_dir.mkdir(exist_ok=True)
 
-    # Point app to user data directory
+    # Point app to user data directory (both cases; pydantic-settings is case-insensitive,
+    # backups_dir is read via REIGN_BACKUPS_DIR fallback in api/routes/backup.py).
     os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{db_path}"
+    os.environ["database_url"] = f"sqlite+aiosqlite:///{db_path}"
     os.environ["REIGN_BACKUPS_DIR"] = str(backups_dir)
 
     import socket
@@ -69,18 +74,18 @@ def main() -> None:
             if s.connect_ex((host, port)) == 0:
                 break
     else:
-        print("Server failed to start.", file=sys.stderr)
+        logger.error("Server failed to start.")
         proc.terminate()
         sys.exit(1)
 
-    print(f"Opening Reign at {url}")
+    logger.info("Opening Reign at %s", url)
     webbrowser.open(url)
 
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("\nShutting down Reign...")
+        logger.info("Shutting down Reign...")
         proc.terminate()
         proc.join(timeout=3)
         sys.exit(0)
