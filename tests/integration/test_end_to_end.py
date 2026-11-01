@@ -1,5 +1,7 @@
 """End-to-end integration tests."""
 
+from datetime import datetime
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -36,9 +38,10 @@ async def test_create_account_and_transaction(client):
     assert r.status_code == 201
     test_account = r.json()
 
-    # Create transaction
+    # Create transaction (current month so dashboard summary reflects it)
+    today = datetime.now().strftime("%Y-%m-%d")
     r = await client.post("/api/transactions", json={
-        "date": "2026-04-15",
+        "date": today,
         "description": "COFFEE SHOP",
         "amount": -50000,
         "currency": "IDR",

@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from reign.adapters.database import AsyncSessionLocal, get_session
+from reign.adapters.database import get_session
 from reign.domain.models import AppSetting
 
 router = APIRouter()

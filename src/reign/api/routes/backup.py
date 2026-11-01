@@ -1,7 +1,6 @@
 """Backup/restore API routes."""
 import asyncio
 import json
-import os
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
