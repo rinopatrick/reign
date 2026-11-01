@@ -140,6 +140,8 @@ class DashboardSummary(BaseModel):
 
 class TrendPoint(BaseModel):
     label: str
+    year: int
+    month: int
     income: Decimal
     expense: Decimal
     net: Decimal
@@ -218,3 +220,4 @@ class TransactionListParams(BaseModel):
     tag: str | None = None
     limit: int = Field(default=500, ge=1, le=2000)
     offset: int = Field(default=0, ge=0)
+    after_id: int | None = Field(default=None, ge=1)

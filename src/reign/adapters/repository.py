@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import extract, func, or_, select
@@ -95,6 +95,7 @@ class TransactionRepository:
         include_deleted: bool = False,
         limit: int = 500,
         offset: int = 0,
+        after_id: int | None = None,
     ) -> Sequence[Transaction]:
         stmt = (
             select(Transaction)
@@ -102,8 +103,10 @@ class TransactionRepository:
                 selectinload(Transaction.category),
                 selectinload(Transaction.splits).selectinload(TransactionSplit.category),
             )
-            .order_by(Transaction.date.desc())
+            .order_by(Transaction.id.desc())
         )
+        if after_id is not None:
+            stmt = stmt.where(Transaction.id < after_id)
         if not include_deleted:
             stmt = stmt.where(Transaction.is_deleted.is_(False))
         if account_id:
@@ -269,6 +272,31 @@ class TransactionRepository:
             "net": income + expense,
         }
 
+    async def get_balance_total(self, currency: str = "IDR") -> Decimal:
+        """Sum of all non-deleted, non-transfer amounts for net-worth."""
+        stmt = (
+            select(func.coalesce(func.sum(Transaction.amount), Decimal("0")))
+            .where(Transaction.currency == currency)
+            .where(Transaction.is_deleted.is_(False))
+            .where(Transaction.transaction_type != "transfer")
+        )
+        return (await self._session.execute(stmt)).scalar_one()
+
+    async def get_spent_map(self, year: int, month: int) -> dict[tuple[int, str], Decimal]:
+        """One query for all (category_id, currency) spent. Value is positive."""
+        stmt = (
+            select(Category.id, Transaction.currency, func.sum(Transaction.amount))
+            .join(Transaction, Transaction.category_id == Category.id)
+            .where(extract("year", Transaction.date) == year)
+            .where(extract("month", Transaction.date) == month)
+            .where(Transaction.amount < 0)
+            .where(Transaction.is_deleted.is_(False))
+            .where(Transaction.transaction_type != "transfer")
+            .group_by(Category.id, Transaction.currency)
+        )
+        rows = (await self._session.execute(stmt)).all()
+        return {(cid, cur): abs(total) for cid, cur, total in rows if total is not None}
+
     async def get_category_totals(
         self, year: int, month: int, currency: str = "IDR"
     ) -> Sequence[tuple[str, Decimal]]:
@@ -289,17 +317,21 @@ class TransactionRepository:
         return result.all()
 
     async def get_monthly_trends(self, months: int = 6, currency: str = "IDR") -> list[dict]:
-        """Return income/expense per month for the last N months."""
+        """Return income/expense per month for the last N months (calendar-correct)."""
+        from reign.domain.period import Period
+
         now = datetime.now()
+        current = Period.from_raw(now.year, now.month, currency)
+        start = current.add_months(-(months - 1))
         results = []
-        for i in range(months - 1, -1, -1):
-            d = now.replace(day=1) - timedelta(days=i * 30)
-            summary = await self.get_summary(d.year, d.month, currency)
+        for j in range(months):
+            p = start.add_months(j)
+            summary = await self.get_summary(p.year, p.month, p.as_currency_str())
             results.append(
                 {
-                    "label": d.strftime("%b %Y"),
-                    "year": d.year,
-                    "month": d.month,
+                    "label": p.label(),
+                    "year": p.year,
+                    "month": p.month,
                     "income": summary["income"],
                     "expense": summary["expense"],
                     "net": summary["net"],

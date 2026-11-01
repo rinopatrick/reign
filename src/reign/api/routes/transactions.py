@@ -47,6 +47,7 @@ async def list_transactions(
         tag=params.tag,
         limit=params.limit,
         offset=params.offset,
+        after_id=params.after_id,
     )
 
 
