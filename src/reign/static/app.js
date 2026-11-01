@@ -841,10 +841,10 @@ async function renderAccounts(container) {
           <div>
             <div class="flex items-center justify-between">
               <h4 class="font-semibold text-sm dark:text-gray-200">${escapeHtml(a.name)}</h4>
-              <span class="text-xs text-gray-400 uppercase">${a.type}</span>
+              <span class="text-xs text-gray-400 uppercase">${escapeHtml(a.type)}</span>
             </div>
             <p class="text-xl font-bold mt-2 dark:text-gray-100">${formatMoney(a.initial_balance, a.currency)}</p>
-            <p class="text-xs text-gray-400">${a.currency}</p>
+            <p class="text-xs text-gray-400">${escapeHtml(a.currency)}</p>
           </div>
           <button onclick="deleteAccount(${a.id})" class="mt-4 text-xs text-rose-600 hover:underline text-left">Delete</button>
         </div>
@@ -963,7 +963,7 @@ async function renderCategories(container) {
                 <span class="w-3 h-3 rounded-full inline-block" style="background:${safeColor(c.color)}"></span>
                 ${escapeHtml(c.name)}
               </td>
-              <td class="px-4 py-3 capitalize dark:text-gray-300">${c.type}</td>
+              <td class="px-4 py-3 capitalize dark:text-gray-300">${escapeHtml(c.type)}</td>
               <td class="px-4 py-3 text-gray-400 dark:text-gray-500 text-xs">${escapeHtml(c.keywords || '-')}</td>
             </tr>
           `).join('')}
@@ -1048,7 +1048,7 @@ async function renderForecast(container) {
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
         ${data.months.map(m => `
           <div class="border dark:border-gray-700 rounded-lg p-4">
-            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">${m.label}</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">${escapeHtml(m.label)}</p>
             <p class="text-lg font-bold ${m.net >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${m.net >= 0 ? '+' : ''}${formatMoney(m.net)}</p>
             <p class="text-xs text-gray-400">Income: ${formatMoney(m.income)} · Exp: ${formatMoney(Math.abs(m.expense))}</p>
           </div>
@@ -1305,7 +1305,7 @@ async function importCSV(input) {
 
   const previewHTML = preview.preview.map((row, i) => `
     <tr class="border-b dark:border-gray-700">
-      <td class="px-3 py-2 text-xs dark:text-gray-300">${row.date}</td>
+      <td class="px-3 py-2 text-xs dark:text-gray-300">${escapeHtml(row.date)}</td>
       <td class="px-3 py-2 text-xs dark:text-gray-300">${escapeHtml(row.description)}</td>
       <td class="px-3 py-2 text-xs font-medium ${row.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${formatMoney(row.amount)}</td>
     </tr>
