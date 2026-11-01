@@ -1,9 +1,7 @@
 """Desktop entry point — bundles server + browser into one experience."""
 
 import logging
-import multiprocessing
 import os
-import socket
 import sys
 import time
 import webbrowser
@@ -45,9 +43,12 @@ def main() -> None:
     backups_dir = data_dir / "backups"
     backups_dir.mkdir(exist_ok=True)
 
-    # Point app to user data directory
+    # Point app to user data directory (both cases; pydantic-settings is case-insensitive,
+    # backups_dir is read via REIGN_BACKUPS_DIR fallback in api/routes/backup.py).
     os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{db_path}"
     os.environ["REIGN_BACKUPS_DIR"] = str(backups_dir)
+
+    import socket  # noqa: PLC0415  # lazy: startup probe only
 
     host = "127.0.0.1"
     port = 8000
@@ -58,6 +59,8 @@ def main() -> None:
             port = s.getsockname()[1]
 
     url = f"http://{host}:{port}"
+
+    import multiprocessing  # noqa: PLC0415  # lazy: spawn context only
 
     ctx = multiprocessing.get_context("spawn")
     proc = ctx.Process(target=_run_server, args=(host, port), daemon=True)
@@ -81,7 +84,7 @@ def main() -> None:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("\nShutting down Reign...")
+        logger.info("Shutting down Reign...")
         proc.terminate()
         proc.join(timeout=3)
         sys.exit(0)

@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String, Text, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from reign.adapters.database import Base
@@ -66,6 +66,15 @@ class Transaction(Base):
     category: Mapped[Optional["Category"]] = relationship(back_populates="transactions")
     splits: Mapped[list["TransactionSplit"]] = relationship(
         back_populates="transaction", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        Index("ix_transactions_date", "date"),
+        Index("ix_transactions_account", "account_id"),
+        Index("ix_transactions_category", "category_id"),
+        Index("ix_transactions_type", "transaction_type"),
+        Index("ix_transactions_currency", "currency"),
+        Index("ix_transactions_period", "date", "currency", "transaction_type"),
     )
 
 

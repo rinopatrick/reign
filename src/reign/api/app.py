@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from reign.adapters.database import AsyncSessionLocal, init_db
+from reign.api.errors import register_handlers
 from reign.api.routes.accounts import router as accounts_router
 from reign.api.routes.backup import backup_scheduler, router as backup_router
 from reign.api.routes.budgets import router as budgets_router
@@ -20,6 +21,7 @@ from reign.api.routes.recurring import router as recurring_router
 from reign.api.routes.reports import router as reports_router
 from reign.api.routes.settings import router as settings_router
 from reign.api.routes.transactions import router as transactions_router
+from reign.config import settings
 from reign.logging import setup_logging
 from reign.utils.seed import seed_categories, seed_demo_account
 
@@ -44,11 +46,13 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=settings.cors_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Content-Type", "Accept"],
 )
+
+register_handlers(app)
 
 app.include_router(accounts_router, prefix="/api/accounts", tags=["accounts"])
 app.include_router(categories_router, prefix="/api/categories", tags=["categories"])
