@@ -1,6 +1,5 @@
 """Auto-categorization engine using keyword rules."""
 
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from reign.adapters.repository import CategoryRepository
@@ -23,9 +22,7 @@ def match_category(description: str, categories: list[Category]) -> int | None:
     return best_id
 
 
-async def categorize_transactions(
-    session: AsyncSession, transactions: list[Transaction]
-) -> None:
+async def categorize_transactions(session: AsyncSession, transactions: list[Transaction]) -> None:
     """Auto-assign categories to uncategorized transactions."""
     repo = CategoryRepository(session)
     categories = list(await repo.list())

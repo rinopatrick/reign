@@ -1,4 +1,5 @@
 """Account API routes."""
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,9 +19,7 @@ async def list_accounts(session: AsyncSession = Depends(get_session)):
 
 
 @router.post("", response_model=AccountOut, status_code=201)
-async def create_account(
-    data: AccountCreate, session: AsyncSession = Depends(get_session)
-):
+async def create_account(data: AccountCreate, session: AsyncSession = Depends(get_session)):
     repo = AccountRepository(session)
     account = Account(**data.model_dump())
     return await repo.create(account)

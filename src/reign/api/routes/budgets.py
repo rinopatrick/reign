@@ -1,4 +1,5 @@
 """Budget API routes."""
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,13 +12,12 @@ router = APIRouter()
 
 
 @router.get("", response_model=list[BudgetOut])
-async def list_budgets(
-    year: int, month: int, session: AsyncSession = Depends(get_session)
-):
+async def list_budgets(year: int, month: int, session: AsyncSession = Depends(get_session)):
     repo = BudgetRepository(session)
     budgets = await repo.list(year, month)
     # Compute spent per budget
     from reign.adapters.repository import TransactionRepository
+
     tx_repo = TransactionRepository(session)
     for b in budgets:
         summary = await tx_repo.get_category_totals(year, month, b.currency)
@@ -27,9 +27,7 @@ async def list_budgets(
 
 
 @router.post("", response_model=BudgetOut, status_code=201)
-async def create_budget(
-    data: BudgetCreate, session: AsyncSession = Depends(get_session)
-):
+async def create_budget(data: BudgetCreate, session: AsyncSession = Depends(get_session)):
     repo = BudgetRepository(session)
     budget = Budget(**data.model_dump())
     return await repo.create_or_update(budget)

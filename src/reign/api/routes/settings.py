@@ -1,4 +1,5 @@
 """Application settings API routes."""
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -38,7 +39,9 @@ async def get_setting(key: str, session: AsyncSession = Depends(get_session)):
 
 
 @router.put("/{key}")
-async def update_setting(key: str, payload: SettingUpdate, session: AsyncSession = Depends(get_session)):
+async def update_setting(
+    key: str, payload: SettingUpdate, session: AsyncSession = Depends(get_session)
+):
     result = await session.execute(select(AppSetting).where(AppSetting.key == key))
     setting = result.scalar_one_or_none()
     if setting is None:

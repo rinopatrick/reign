@@ -13,7 +13,11 @@ BankFormat = tuple[Callable[[list[str]], bool], Callable[[list[dict]], list[dict
 
 
 def _detect_bca(header: list[str]) -> bool:
-    return any("Tanggal" in h for h in header) and any("Keterangan" in h for h in header) and any("Mutasi" in h for h in header)
+    return (
+        any("Tanggal" in h for h in header)
+        and any("Keterangan" in h for h in header)
+        and any("Mutasi" in h for h in header)
+    )
 
 
 def _parse_bca(rows: list[dict]) -> list[dict]:
@@ -29,12 +33,14 @@ def _parse_bca(rows: list[dict]) -> list[dict]:
             amount = Decimal(mutasi)
         except (ValueError, InvalidOperation):
             continue
-        out.append({
-            "date": dt.date().isoformat(),
-            "description": desc,
-            "amount": amount,
-            "currency": "IDR",
-        })
+        out.append(
+            {
+                "date": dt.date().isoformat(),
+                "description": desc,
+                "amount": amount,
+                "currency": "IDR",
+            }
+        )
     return out
 
 
@@ -62,12 +68,14 @@ def _parse_mandiri(rows: list[dict]) -> list[dict]:
             amount = Decimal(credit)
         else:
             continue
-        out.append({
-            "date": dt.date().isoformat(),
-            "description": desc,
-            "amount": amount,
-            "currency": "IDR",
-        })
+        out.append(
+            {
+                "date": dt.date().isoformat(),
+                "description": desc,
+                "amount": amount,
+                "currency": "IDR",
+            }
+        )
     return out
 
 
@@ -88,12 +96,14 @@ def _parse_jenius(rows: list[dict]) -> list[dict]:
             amount = Decimal(amount_str)
         except (ValueError, InvalidOperation):
             continue
-        out.append({
-            "date": dt.date().isoformat(),
-            "description": desc,
-            "amount": amount,
-            "currency": "IDR",
-        })
+        out.append(
+            {
+                "date": dt.date().isoformat(),
+                "description": desc,
+                "amount": amount,
+                "currency": "IDR",
+            }
+        )
     return out
 
 
@@ -112,7 +122,9 @@ def _parse_generic(rows: list[dict]) -> list[dict]:
         return out
     keys = list(rows[0].keys())
     date_key = next((k for k in keys if "date" in k.lower() or "tanggal" in k.lower()), None)
-    desc_key = next((k for k in keys if any(x in k.lower() for x in ("desc", "keterangan", "narrative"))), None)
+    desc_key = next(
+        (k for k in keys if any(x in k.lower() for x in ("desc", "keterangan", "narrative"))), None
+    )
     amt_key = next((k for k in keys if "amount" in k.lower()), None)
     debit_key = next((k for k in keys if "debit" in k.lower()), None)
     credit_key = next((k for k in keys if "credit" in k.lower()), None)
@@ -141,8 +153,16 @@ def _parse_generic(rows: list[dict]) -> list[dict]:
             except InvalidOperation:
                 continue
         elif debit_key or credit_key:
-            debit = row.get(debit_key, "").strip().replace(",", "").replace(".", "") if debit_key else ""
-            credit = row.get(credit_key, "").strip().replace(",", "").replace(".", "") if credit_key else ""
+            debit = (
+                row.get(debit_key, "").strip().replace(",", "").replace(".", "")
+                if debit_key
+                else ""
+            )
+            credit = (
+                row.get(credit_key, "").strip().replace(",", "").replace(".", "")
+                if credit_key
+                else ""
+            )
             try:
                 if debit:
                     amount = -Decimal(debit)
@@ -155,12 +175,14 @@ def _parse_generic(rows: list[dict]) -> list[dict]:
         else:
             continue
 
-        out.append({
-            "date": dt.date().isoformat(),
-            "description": desc,
-            "amount": amount,
-            "currency": "IDR",
-        })
+        out.append(
+            {
+                "date": dt.date().isoformat(),
+                "description": desc,
+                "amount": amount,
+                "currency": "IDR",
+            }
+        )
     return out
 
 
