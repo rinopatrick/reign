@@ -1,5 +1,7 @@
 """Integration: transfer + backup round-trip."""
 
+import io
+import json
 from datetime import datetime
 
 import pytest
@@ -49,9 +51,7 @@ async def test_transfer_and_backup_roundtrip(client):
     assert any(a["name"] == "A" for a in data["accounts"])
     assert len(data["transactions"]) >= 2
 
-    import io
-
-    payload = __import__("json").dumps(data).encode()
+    payload = json.dumps(data).encode()
     r = await client.post(
         "/api/restore", files={"file": ("backup.json", io.BytesIO(payload), "application/json")}
     )

@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from reign.adapters.database import AsyncSessionLocal, init_db
+from reign.api.errors import register_handlers
 from reign.api.routes.accounts import router as accounts_router
 from reign.api.routes.backup import backup_scheduler, router as backup_router
 from reign.api.routes.budgets import router as budgets_router
@@ -32,8 +33,8 @@ async def lifespan(_app: FastAPI):
     async with AsyncSessionLocal() as session:
         await seed_categories(session)
         await seed_demo_account(session)
-    # Start background backup scheduler
-    asyncio.create_task(backup_scheduler())
+    # Keep a reference so the scheduler is not GC'd (RUF006).
+    _app.state.backup_task = asyncio.create_task(backup_scheduler())
     yield
 
 
@@ -50,6 +51,8 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type", "Accept"],
 )
+
+register_handlers(app)
 
 app.include_router(accounts_router, prefix="/api/accounts", tags=["accounts"])
 app.include_router(categories_router, prefix="/api/categories", tags=["categories"])

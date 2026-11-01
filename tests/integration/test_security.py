@@ -82,7 +82,13 @@ async def test_restore_rejects_bad_json(client):
 
 @pytest.mark.asyncio
 async def test_restore_rejects_bad_fk(client):
-    bad = {"accounts": [], "categories": [], "transactions": [{"id": 1, "date": "2026-01-01", "description": "X", "amount": 1, "account_id": 999}]}
+    bad = {
+        "accounts": [],
+        "categories": [],
+        "transactions": [
+            {"id": 1, "date": "2026-01-01", "description": "X", "amount": 1, "account_id": 999}
+        ],
+    }
     r = await client.post(
         "/api/restore",
         files={"file": ("bad.json", io.BytesIO(json.dumps(bad).encode()), "application/json")},

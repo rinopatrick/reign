@@ -1,4 +1,5 @@
 """Report generation routes."""
+
 from datetime import datetime
 from io import BytesIO
 

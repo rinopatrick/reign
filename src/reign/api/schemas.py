@@ -1,12 +1,31 @@
 """Pydantic request/response schemas."""
+
 from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from reign.domain.enums import AccountType, CategoryType, Currency, TxType
 
 _Date = date
+
+
+def _norm_currency(v: str) -> str:
+    return Currency(str(v).upper()).value
+
+
+def _norm_account_type(v: str) -> str:
+    return AccountType(str(v).lower()).value
+
+
+def _norm_category_type(v: str) -> str:
+    return CategoryType(str(v).lower()).value
+
+
+def _norm_tx_type(v: str) -> str:
+    return TxType(str(v).lower()).value
 
 
 class AccountCreate(BaseModel):
@@ -14,6 +33,9 @@ class AccountCreate(BaseModel):
     type: str = "checking"
     currency: str = "IDR"
     initial_balance: Decimal = Decimal("0")
+
+    _v_currency = field_validator("currency", mode="before")(_norm_currency)
+    _v_type = field_validator("type", mode="before")(_norm_account_type)
 
 
 class AccountOut(AccountCreate):
@@ -26,6 +48,8 @@ class CategoryCreate(BaseModel):
     type: str = "expense"
     color: str | None = "#718096"
     keywords: str | None = ""
+
+    _v_type = field_validator("type", mode="before")(_norm_category_type)
 
 
 class CategoryOut(CategoryCreate):
@@ -57,6 +81,9 @@ class TransactionCreate(BaseModel):
     category_id: int | None = None
     splits: list[SplitCreate] | None = None
 
+    _v_currency = field_validator("currency", mode="before")(_norm_currency)
+    _v_type = field_validator("transaction_type", mode="before")(_norm_tx_type)
+
 
 class TransactionOut(TransactionCreate):
     model_config = ConfigDict(from_attributes=True)
@@ -76,6 +103,8 @@ class TransferCreate(BaseModel):
     date: date
     description: str | None = "Transfer"
 
+    _v_currency = field_validator("currency", mode="before")(_norm_currency)
+
 
 class BudgetCreate(BaseModel):
     year: int
@@ -84,6 +113,8 @@ class BudgetCreate(BaseModel):
     currency: str = "IDR"
     category_id: int
     rollover: bool = False
+
+    _v_currency = field_validator("currency", mode="before")(_norm_currency)
 
 
 class BudgetOut(BudgetCreate):
@@ -120,6 +151,8 @@ class GoalCreate(BaseModel):
     current_amount: Decimal = Decimal("0")
     currency: str = "IDR"
 
+    _v_currency = field_validator("currency", mode="before")(_norm_currency)
+
 
 class GoalOut(GoalCreate):
     model_config = ConfigDict(from_attributes=True)
@@ -135,6 +168,8 @@ class RecurringCreate(BaseModel):
     account_id: int
     category_id: int | None = None
     active: bool = True
+
+    _v_currency = field_validator("currency", mode="before")(_norm_currency)
 
 
 class RecurringOut(RecurringCreate):
@@ -173,9 +208,13 @@ class CSVImportResponse(BaseModel):
 
 
 class TransactionListParams(BaseModel):
+    """GET /api/transactions filter bundle (keeps route signature small)."""
+
     account_id: int | None = None
     category_id: int | None = None
     start_date: _Date | None = None
     end_date: _Date | None = None
-    limit: int = 500
-    offset: int = 0
+    q: str | None = None
+    tag: str | None = None
+    limit: int = Field(default=500, ge=1, le=2000)
+    offset: int = Field(default=0, ge=0)

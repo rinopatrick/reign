@@ -1,12 +1,15 @@
 """Transaction API routes."""
+
 import csv
 import io
 import json
 from datetime import date as date_cls
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from reign.adapters.database import get_session
 from reign.adapters.repository import AccountRepository, CategoryRepository, TransactionRepository
@@ -15,6 +18,7 @@ from reign.api.schemas import (
     BulkUpdate,
     CSVImportResponse,
     TransactionCreate,
+    TransactionListParams,
     TransactionOut,
     TransferCreate,
 )
@@ -23,54 +27,31 @@ from reign.domain.models import Transaction, TransactionSplit
 from reign.exceptions import CSVParseError, NotFoundError
 from reign.services.categorizer import categorize_transactions
 from reign.services.csv_parser import parse_csv
+from reign.services.uploads import read_limited_upload
 
 router = APIRouter()
 
 
-async def _read_limited(file: UploadFile, limit: int, label: str) -> bytes:
-    """Read upload in chunks, abort 413 before OOM."""
-    chunks: list[bytes] = []
-    total = 0
-    while True:
-        chunk = await file.read(1024 * 1024)
-        if not chunk:
-            break
-        total += len(chunk)
-        if total > limit:
-            raise HTTPException(status_code=413, detail=f"{label} too large")
-        chunks.append(chunk)
-    return b"".join(chunks)
-
-
 @router.get("", response_model=list[TransactionOut])
 async def list_transactions(
-    account_id: int | None = None,
-    category_id: int | None = None,
-    start_date: date_cls | None = None,
-    end_date: date_cls | None = None,
-    q: str | None = None,
-    tag: str | None = None,
-    limit: int = Query(500, ge=1, le=2000),
-    offset: int = Query(0, ge=0),
+    params: TransactionListParams = Depends(),
     session: AsyncSession = Depends(get_session),
 ):
     repo = TransactionRepository(session)
     return await repo.list(
-        account_id=account_id,
-        category_id=category_id,
-        start_date=start_date,
-        end_date=end_date,
-        q=q,
-        tag=tag,
-        limit=limit,
-        offset=offset,
+        account_id=params.account_id,
+        category_id=params.category_id,
+        start_date=params.start_date,
+        end_date=params.end_date,
+        q=params.q,
+        tag=params.tag,
+        limit=params.limit,
+        offset=params.offset,
     )
 
 
 @router.post("", response_model=TransactionOut, status_code=201)
-async def create_transaction(
-    data: TransactionCreate, session: AsyncSession = Depends(get_session)
-):
+async def create_transaction(data: TransactionCreate, session: AsyncSession = Depends(get_session)):
     try:
         await AccountRepository(session).get(data.account_id)
     except NotFoundError as e:
@@ -91,11 +72,7 @@ async def create_transaction(
 
 
 @router.get("/{transaction_id}", response_model=TransactionOut)
-async def get_transaction(
-    transaction_id: int, session: AsyncSession = Depends(get_session)
-):
-    from sqlalchemy import select
-    from sqlalchemy.orm import selectinload
+async def get_transaction(transaction_id: int, session: AsyncSession = Depends(get_session)):
     result = await session.execute(
         select(Transaction)
         .options(
@@ -139,9 +116,7 @@ async def update_transaction(
 
 
 @router.post("/transfer", status_code=201)
-async def create_transfer(
-    data: TransferCreate, session: AsyncSession = Depends(get_session)
-):
+async def create_transfer(data: TransferCreate, session: AsyncSession = Depends(get_session)):
     """Create a transfer between two accounts."""
     if data.from_account_id == data.to_account_id:
         raise HTTPException(status_code=400, detail="Transfer accounts must differ")
@@ -178,9 +153,7 @@ async def create_transfer(
 
 
 @router.delete("/{transaction_id}")
-async def delete_transaction(
-    transaction_id: int, session: AsyncSession = Depends(get_session)
-):
+async def delete_transaction(transaction_id: int, session: AsyncSession = Depends(get_session)):
     repo = TransactionRepository(session)
     try:
         await repo.delete(transaction_id)
@@ -190,27 +163,21 @@ async def delete_transaction(
 
 
 @router.post("/bulk-delete")
-async def bulk_delete(
-    data: BulkIds, session: AsyncSession = Depends(get_session)
-):
+async def bulk_delete(data: BulkIds, session: AsyncSession = Depends(get_session)):
     repo = TransactionRepository(session)
     await repo.bulk_delete(data.ids)
     return {"message": f"Deleted {len(data.ids)} transactions"}
 
 
 @router.post("/bulk-reconcile")
-async def bulk_reconcile(
-    data: BulkIds, session: AsyncSession = Depends(get_session)
-):
+async def bulk_reconcile(data: BulkIds, session: AsyncSession = Depends(get_session)):
     repo = TransactionRepository(session)
     await repo.bulk_reconcile(data.ids)
     return {"message": f"Reconciled {len(data.ids)} transactions"}
 
 
 @router.post("/bulk-update")
-async def bulk_update(
-    data: BulkUpdate, session: AsyncSession = Depends(get_session)
-):
+async def bulk_update(data: BulkUpdate, session: AsyncSession = Depends(get_session)):
     repo = TransactionRepository(session)
     if data.category_id is not None:
         try:
@@ -236,7 +203,7 @@ async def import_csv(
         await AccountRepository(session).get(account_id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-    content = await _read_limited(file, settings.max_csv_bytes, "CSV")
+    content = await read_limited_upload(file, settings.max_csv_bytes, "CSV")
     try:
         fmt, parsed = parse_csv(content)
     except CSVParseError as e:
@@ -277,7 +244,7 @@ async def import_csv_preview(
         raise HTTPException(status_code=400, detail="File must be a CSV")
     if file.size is not None and file.size > settings.max_csv_bytes:
         raise HTTPException(status_code=413, detail="CSV too large (max 5MB)")
-    content = await _read_limited(file, settings.max_csv_bytes, "CSV")
+    content = await read_limited_upload(file, settings.max_csv_bytes, "CSV")
     try:
         fmt, parsed = parse_csv(content)
     except CSVParseError as e:
@@ -306,18 +273,31 @@ async def export_csv(
     )
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["date", "description", "amount", "currency", "category", "tags", "transaction_type", "account_id"])
+    writer.writerow(
+        [
+            "date",
+            "description",
+            "amount",
+            "currency",
+            "category",
+            "tags",
+            "transaction_type",
+            "account_id",
+        ]
+    )
     for tx in txs:
-        writer.writerow([
-            tx.date.isoformat(),
-            tx.description,
-            str(tx.amount),
-            tx.currency,
-            tx.category.name if tx.category else "",
-            tx.tags or "",
-            tx.transaction_type,
-            tx.account_id,
-        ])
+        writer.writerow(
+            [
+                tx.date.isoformat(),
+                tx.description,
+                str(tx.amount),
+                tx.currency,
+                tx.category.name if tx.category else "",
+                tx.tags or "",
+                tx.transaction_type,
+                tx.account_id,
+            ]
+        )
     output.seek(0)
     return StreamingResponse(
         io.BytesIO(output.getvalue().encode("utf-8")),

@@ -4,13 +4,14 @@ import asyncio
 import json
 import logging
 import os
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from reign.adapters.database import AsyncSessionLocal
 from reign.adapters.repository import (
@@ -20,16 +21,10 @@ from reign.adapters.repository import (
     TransactionRepository,
 )
 from reign.config import settings
-from reign.domain.models import (
-    Account,
-    AppSetting,
-    Budget,
-    Category,
-    Goal,
-    RecurringTransaction,
-    Transaction,
-    TransactionSplit,
-)
+from reign.domain.models import Budget, RecurringTransaction, TransactionSplit
+from reign.services.restore import restore_counts, run_restore, validate_backup_shape
+from reign.services.settings import get_setting as _get_setting, set_setting as _set_setting
+from reign.services.uploads import read_limited_upload
 
 router = APIRouter()
 logger = logging.getLogger("reign.backup")
@@ -51,31 +46,8 @@ def _backups_dir() -> Path:
     return d
 
 
-async def _get_setting(session, key: str, default: str = "") -> str:
-    result = await session.execute(select(AppSetting).where(AppSetting.key == key))
-    row = result.scalar_one_or_none()
-    if row is None:
-        row = AppSetting(key=key, value=default)
-        session.add(row)
-        await session.commit()
-    return row.value or ""
-
-
-async def _set_setting(session, key: str, value: str) -> None:
-    result = await session.execute(select(AppSetting).where(AppSetting.key == key))
-    row = result.scalar_one_or_none()
-    if row is None:
-        row = AppSetting(key=key, value=value)
-        session.add(row)
-    else:
-        row.value = value
-    await session.commit()
-
-
 async def _collect_backup_data(session) -> dict:
     """Single place that builds the full backup payload (no duplication)."""
-    from sqlalchemy.orm import selectinload
-
     accounts = await AccountRepository(session).list()
     categories = await CategoryRepository(session).list()
     transactions = await TransactionRepository(session).list(include_deleted=True)
@@ -212,7 +184,9 @@ async def backup_scheduler():
     while True:
         try:
             async with AsyncSessionLocal() as session:
-                enabled = (await _get_setting(session, "auto_backup_enabled", "false")).lower() == "true"
+                enabled = (
+                    await _get_setting(session, "auto_backup_enabled", "false")
+                ).lower() == "true"
                 if not enabled:
                     await asyncio.sleep(3600)
                     continue
@@ -242,52 +216,16 @@ async def export_backup():
 
 
 @router.post("/restore")
-async def import_backup(file: UploadFile = File(...), dry_run: bool = False):
+async def import_backup(file: UploadFile = File(...), *, dry_run: bool = False):
     if not file.filename or not file.filename.lower().endswith(".json"):
         raise HTTPException(status_code=400, detail="File must be JSON")
-    chunks: list[bytes] = []
-    total = 0
-    while True:
-        chunk = await file.read(1024 * 1024)
-        if not chunk:
-            break
-        total += len(chunk)
-        if total > settings.max_json_bytes:
-            raise HTTPException(status_code=413, detail="Backup too large (max 10MB)")
-        chunks.append(chunk)
-    content = b"".join(chunks)
+    content = await read_limited_upload(file, settings.max_json_bytes, "Backup")
     try:
-        data = json.loads(content)
+        raw = json.loads(content)
     except json.JSONDecodeError as e:
         raise HTTPException(status_code=422, detail="Invalid JSON") from e
-    if not isinstance(data, dict):
-        raise HTTPException(status_code=422, detail="Invalid backup shape")
-
-    # Validate FK references before touching the DB.
-    cat_ids = {c.get("id") for c in data.get("categories", []) if isinstance(c, dict)}
-    acc_ids = {a.get("id") for a in data.get("accounts", []) if isinstance(a, dict)}
-    for t in data.get("transactions", []):
-        if not isinstance(t, dict) or "description" not in t or "date" not in t:
-            raise HTTPException(status_code=422, detail="Invalid transaction entry")
-        if t.get("account_id") not in acc_ids:
-            raise HTTPException(status_code=422, detail="Transaction references unknown account")
-        if t.get("category_id") is not None and t.get("category_id") not in cat_ids:
-            raise HTTPException(status_code=422, detail="Transaction references unknown category")
-    try:
-        for t in data.get("transactions", []):
-            date.fromisoformat(str(t["date"]))
-            Decimal(str(t.get("amount", "0")))
-    except Exception as e:
-        raise HTTPException(status_code=422, detail="Invalid transaction data") from e
-
-    counts = {
-        "accounts": len(data.get("accounts", [])),
-        "categories": len(data.get("categories", [])),
-        "transactions": len(data.get("transactions", [])),
-        "budgets": len(data.get("budgets", [])),
-        "goals": len(data.get("goals", [])),
-        "recurring": len(data.get("recurring", [])),
-    }
+    data = validate_backup_shape(raw)
+    counts = restore_counts(data)
     if dry_run:
         return {"message": "Dry run OK", "would_restore": counts}
 
@@ -295,112 +233,7 @@ async def import_backup(file: UploadFile = File(...), dry_run: bool = False):
         backups_dir = _backups_dir()
         snapshot_path = await _snapshot_current(session, backups_dir)
         try:
-            from sqlalchemy import text as _text
-
-            # FK-safe wipe order: children first.
-            for tbl in (
-                "transaction_splits",
-                "transactions",
-                "budgets",
-                "recurring_transactions",
-                "goals",
-                "accounts",
-                "categories",
-            ):
-                await session.execute(_text(f"DELETE FROM {tbl}"))
-            cat_map: dict = {}
-            for c in data.get("categories", []):
-                cat = Category(
-                    name=c["name"],
-                    type=c.get("type", "expense"),
-                    color=c.get("color"),
-                    keywords=c.get("keywords", ""),
-                )
-                session.add(cat)
-                await session.flush()
-                cat_map[c.get("id")] = cat.id
-            acc_map: dict = {}
-            for a in data.get("accounts", []):
-                acc = Account(
-                    name=a["name"],
-                    type=a.get("type", "checking"),
-                    currency=a.get("currency", "IDR"),
-                    initial_balance=Decimal(str(a.get("initial_balance", 0))),
-                )
-                session.add(acc)
-                await session.flush()
-                acc_map[a.get("id")] = acc.id
-            tx_map: dict = {}
-            for t in data.get("transactions", []):
-                tx = Transaction(
-                    date=date.fromisoformat(str(t["date"])),
-                    description=t["description"],
-                    amount=Decimal(str(t["amount"])),
-                    currency=t.get("currency", "IDR"),
-                    account_id=acc_map.get(t.get("account_id"), t.get("account_id")),
-                    category_id=cat_map.get(t.get("category_id"), t.get("category_id"))
-                    if t.get("category_id") is not None
-                    else None,
-                    notes=t.get("notes", "") or "",
-                    tags=t.get("tags", "") or "",
-                    transaction_type=t.get("transaction_type", "expense"),
-                    is_deleted=bool(t.get("is_deleted", False)),
-                    is_reconciled=bool(t.get("is_reconciled", False)),
-                )
-                session.add(tx)
-                await session.flush()
-                tx_map[t.get("id")] = tx.id
-            for s in data.get("splits", []):
-                # Old backups (v1) have no splits — skip gracefully.
-                new_tx = tx_map.get(s.get("transaction_id"))
-                new_cat = cat_map.get(s.get("category_id")) if s.get("category_id") is not None else None
-                if new_tx is None:
-                    continue
-                session.add(
-                    TransactionSplit(
-                        transaction_id=new_tx,
-                        category_id=new_cat,
-                        amount=Decimal(str(s.get("amount", 0))),
-                        description=s.get("description"),
-                    )
-                )
-            for b in data.get("budgets", []):
-                new_cat = cat_map.get(b.get("category_id"), b.get("category_id"))
-                if new_cat is None:
-                    continue
-                session.add(
-                    Budget(
-                        year=int(b["year"]),
-                        month=int(b["month"]),
-                        amount=Decimal(str(b["amount"])),
-                        currency=b.get("currency", "IDR"),
-                        rollover=bool(b.get("rollover", False)),
-                        category_id=new_cat,
-                    )
-                )
-            for g in data.get("goals", []):
-                session.add(
-                    Goal(
-                        name=g["name"],
-                        target_amount=Decimal(str(g["target_amount"])),
-                        current_amount=Decimal(str(g.get("current_amount", 0))),
-                        currency=g.get("currency", "IDR"),
-                    )
-                )
-            for r in data.get("recurring", []):
-                new_acc = acc_map.get(r.get("account_id"), r.get("account_id"))
-                new_cat = cat_map.get(r.get("category_id")) if r.get("category_id") is not None else None
-                session.add(
-                    RecurringTransaction(
-                        description=r.get("description", ""),
-                        amount=Decimal(str(r.get("amount", 0))),
-                        currency=r.get("currency", "IDR"),
-                        day_of_month=int(r.get("day_of_month", 1)),
-                        category_id=new_cat,
-                        account_id=new_acc,
-                        active=bool(r.get("active", True)),
-                    )
-                )
+            await run_restore(session, data)
             await session.commit()
         except HTTPException:
             await session.rollback()

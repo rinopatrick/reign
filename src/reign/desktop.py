@@ -25,7 +25,7 @@ def get_data_dir() -> Path:
 
 def _run_server(host: str, port: int) -> None:
     """Server worker (runs in a child process)."""
-    import uvicorn
+    import uvicorn  # noqa: PLC0415  # lazy: child process only
 
     uvicorn.run(
         "reign.api.app:app",
@@ -46,10 +46,9 @@ def main() -> None:
     # Point app to user data directory (both cases; pydantic-settings is case-insensitive,
     # backups_dir is read via REIGN_BACKUPS_DIR fallback in api/routes/backup.py).
     os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{db_path}"
-    os.environ["database_url"] = f"sqlite+aiosqlite:///{db_path}"
     os.environ["REIGN_BACKUPS_DIR"] = str(backups_dir)
 
-    import socket
+    import socket  # noqa: PLC0415  # lazy: startup probe only
 
     host = "127.0.0.1"
     port = 8000
@@ -61,7 +60,7 @@ def main() -> None:
 
     url = f"http://{host}:{port}"
 
-    import multiprocessing
+    import multiprocessing  # noqa: PLC0415  # lazy: spawn context only
 
     ctx = multiprocessing.get_context("spawn")
     proc = ctx.Process(target=_run_server, args=(host, port), daemon=True)

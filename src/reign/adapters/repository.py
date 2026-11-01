@@ -1,8 +1,9 @@
 """Repository layer for database operations."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import extract, func, or_, select
@@ -72,9 +73,7 @@ class CategoryRepository:
         return category
 
     async def get_by_name(self, name: str) -> Category | None:
-        result = await self._session.execute(
-            select(Category).where(Category.name == name)
-        )
+        result = await self._session.execute(select(Category).where(Category.name == name))
         return result.scalar_one_or_none()
 
 
@@ -106,7 +105,7 @@ class TransactionRepository:
             .order_by(Transaction.date.desc())
         )
         if not include_deleted:
-            stmt = stmt.where(Transaction.is_deleted == False)
+            stmt = stmt.where(Transaction.is_deleted.is_(False))
         if account_id:
             stmt = stmt.where(Transaction.account_id == account_id)
         if category_id:
@@ -133,7 +132,9 @@ class TransactionRepository:
         result = await self._session.execute(stmt.limit(limit).offset(offset))
         return result.scalars().all()
 
-    async def create(self, transaction: Transaction, splits: list[TransactionSplit] | None = None) -> Transaction:
+    async def create(
+        self, transaction: Transaction, splits: list[TransactionSplit] | None = None
+    ) -> Transaction:
         self._session.add(transaction)
         if splits:
             for split in splits:
@@ -152,7 +153,9 @@ class TransactionRepository:
         )
         return result.scalar_one()
 
-    async def update(self, transaction_id: int, data: dict, splits: list[TransactionSplit] | None = None) -> Transaction:
+    async def update(
+        self, transaction_id: int, data: dict, splits: list[TransactionSplit] | None = None
+    ) -> Transaction:
         tx = await self._session.get(Transaction, transaction_id)
         if not tx:
             raise NotFoundError(f"Transaction {transaction_id} not found")
@@ -178,7 +181,9 @@ class TransactionRepository:
         )
         return result.scalar_one()
 
-    async def create_transfer(self, from_tx: Transaction, to_tx: Transaction) -> tuple[Transaction, Transaction]:
+    async def create_transfer(
+        self, from_tx: Transaction, to_tx: Transaction
+    ) -> tuple[Transaction, Transaction]:
         self._session.add(from_tx)
         self._session.add(to_tx)
         await self._session.commit()
@@ -234,7 +239,9 @@ class TransactionRepository:
                 tx.is_reconciled = True
         await self._session.commit()
 
-    async def bulk_update(self, ids: list[int], category_id: int | None = None, date: date | None = None) -> None:
+    async def bulk_update(
+        self, ids: list[int], category_id: int | None = None, date: date | None = None
+    ) -> None:
         for tx_id in ids:
             tx = await self._session.get(Transaction, tx_id)
             if tx:
@@ -244,16 +251,14 @@ class TransactionRepository:
                     tx.date = date
         await self._session.commit()
 
-    async def get_summary(
-        self, year: int, month: int, currency: str = "IDR"
-    ) -> dict[str, Decimal]:
+    async def get_summary(self, year: int, month: int, currency: str = "IDR") -> dict[str, Decimal]:
         """Return income, expense, and net for a month."""
         base = (
             select(func.coalesce(func.sum(Transaction.amount), Decimal("0")))
             .where(extract("year", Transaction.date) == year)
             .where(extract("month", Transaction.date) == month)
             .where(Transaction.currency == currency)
-            .where(Transaction.is_deleted == False)
+            .where(Transaction.is_deleted.is_(False))
             .where(Transaction.transaction_type != "transfer")
         )
         income = (await self._session.execute(base.where(Transaction.amount > 0))).scalar_one()
@@ -275,7 +280,7 @@ class TransactionRepository:
             .where(extract("month", Transaction.date) == month)
             .where(Transaction.currency == currency)
             .where(Transaction.amount < 0)
-            .where(Transaction.is_deleted == False)
+            .where(Transaction.is_deleted.is_(False))
             .where(Transaction.transaction_type != "transfer")
             .group_by(Category.name)
             .order_by(func.sum(Transaction.amount))
@@ -283,24 +288,23 @@ class TransactionRepository:
         result = await self._session.execute(stmt)
         return result.all()
 
-    async def get_monthly_trends(
-        self, months: int = 6, currency: str = "IDR"
-    ) -> list[dict]:
+    async def get_monthly_trends(self, months: int = 6, currency: str = "IDR") -> list[dict]:
         """Return income/expense per month for the last N months."""
-        from datetime import datetime
         now = datetime.now()
         results = []
         for i in range(months - 1, -1, -1):
             d = now.replace(day=1) - timedelta(days=i * 30)
             summary = await self.get_summary(d.year, d.month, currency)
-            results.append({
-                "label": d.strftime("%b %Y"),
-                "year": d.year,
-                "month": d.month,
-                "income": summary["income"],
-                "expense": summary["expense"],
-                "net": summary["net"],
-            })
+            results.append(
+                {
+                    "label": d.strftime("%b %Y"),
+                    "year": d.year,
+                    "month": d.month,
+                    "income": summary["income"],
+                    "expense": summary["expense"],
+                    "net": summary["net"],
+                }
+            )
         return results
 
 
@@ -388,7 +392,7 @@ class RecurringRepository:
         result = await self._session.execute(
             select(RecurringTransaction)
             .options(selectinload(RecurringTransaction.category))
-            .where(RecurringTransaction.active == True)
+            .where(RecurringTransaction.active.is_(True))
         )
         return result.scalars().all()
 
@@ -397,7 +401,9 @@ class RecurringRepository:
         await self._session.commit()
         await self._session.refresh(rec)
         result = await self._session.execute(
-            select(RecurringTransaction).options(selectinload(RecurringTransaction.category)).where(RecurringTransaction.id == rec.id)
+            select(RecurringTransaction)
+            .options(selectinload(RecurringTransaction.category))
+            .where(RecurringTransaction.id == rec.id)
         )
         return result.scalar_one()
 

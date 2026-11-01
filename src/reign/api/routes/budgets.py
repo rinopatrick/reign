@@ -1,4 +1,5 @@
 """Budget API routes."""
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,9 +13,7 @@ router = APIRouter()
 
 
 @router.get("", response_model=list[BudgetOut])
-async def list_budgets(
-    year: int, month: int, session: AsyncSession = Depends(get_session)
-):
+async def list_budgets(year: int, month: int, session: AsyncSession = Depends(get_session)):
     repo = BudgetRepository(session)
     budgets = await repo.list(year, month)
     # Compute spent per budget
@@ -27,9 +26,7 @@ async def list_budgets(
 
 
 @router.post("", response_model=BudgetOut, status_code=201)
-async def create_budget(
-    data: BudgetCreate, session: AsyncSession = Depends(get_session)
-):
+async def create_budget(data: BudgetCreate, session: AsyncSession = Depends(get_session)):
     try:
         await CategoryRepository(session).get(data.category_id)
     except NotFoundError as e:
