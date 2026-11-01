@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from reign.adapters.database import get_session
-from reign.adapters.repository import TransactionRepository
+from reign.adapters.repository import AccountRepository, CategoryRepository, TransactionRepository
 from reign.api.schemas import (
     BulkIds,
     BulkUpdate,
@@ -18,12 +18,28 @@ from reign.api.schemas import (
     TransactionOut,
     TransferCreate,
 )
+from reign.config import settings
 from reign.domain.models import Transaction, TransactionSplit
 from reign.exceptions import CSVParseError, NotFoundError
 from reign.services.categorizer import categorize_transactions
 from reign.services.csv_parser import parse_csv
 
 router = APIRouter()
+
+
+async def _read_limited(file: UploadFile, limit: int, label: str) -> bytes:
+    """Read upload in chunks, abort 413 before OOM."""
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await file.read(1024 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > limit:
+            raise HTTPException(status_code=413, detail=f"{label} too large")
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 @router.get("", response_model=list[TransactionOut])
@@ -55,6 +71,10 @@ async def list_transactions(
 async def create_transaction(
     data: TransactionCreate, session: AsyncSession = Depends(get_session)
 ):
+    try:
+        await AccountRepository(session).get(data.account_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
     repo = TransactionRepository(session)
     tx = Transaction(**{k: v for k, v in data.model_dump().items() if k != "splits"})
     splits = None
@@ -96,6 +116,10 @@ async def update_transaction(
     data: TransactionCreate,
     session: AsyncSession = Depends(get_session),
 ):
+    try:
+        await AccountRepository(session).get(data.account_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
     repo = TransactionRepository(session)
     update_data = {k: v for k, v in data.model_dump().items() if k != "splits"}
     splits = None
@@ -119,6 +143,13 @@ async def create_transfer(
     data: TransferCreate, session: AsyncSession = Depends(get_session)
 ):
     """Create a transfer between two accounts."""
+    if data.from_account_id == data.to_account_id:
+        raise HTTPException(status_code=400, detail="Transfer accounts must differ")
+    try:
+        await AccountRepository(session).get(data.from_account_id)
+        await AccountRepository(session).get(data.to_account_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
     repo = TransactionRepository(session)
     from_tx = Transaction(
         date=data.date,
@@ -181,6 +212,11 @@ async def bulk_update(
     data: BulkUpdate, session: AsyncSession = Depends(get_session)
 ):
     repo = TransactionRepository(session)
+    if data.category_id is not None:
+        try:
+            await CategoryRepository(session).get(data.category_id)
+        except NotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
     await repo.bulk_update(data.ids, category_id=data.category_id, date=data.date)
     return {"message": f"Updated {len(data.ids)} transactions"}
 
@@ -192,9 +228,15 @@ async def import_csv(
     session: AsyncSession = Depends(get_session),
 ):
     """Upload a bank CSV and auto-import transactions."""
-    if not file.filename or not file.filename.endswith(".csv"):
+    if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="File must be a CSV")
-    content = await file.read()
+    if file.size is not None and file.size > settings.max_csv_bytes:
+        raise HTTPException(status_code=413, detail="CSV too large (max 5MB)")
+    try:
+        await AccountRepository(session).get(account_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    content = await _read_limited(file, settings.max_csv_bytes, "CSV")
     try:
         fmt, parsed = parse_csv(content)
     except CSVParseError as e:
@@ -231,9 +273,11 @@ async def import_csv_preview(
     file: UploadFile = File(...),
 ):
     """Preview a CSV before importing — returns first 10 rows + detected format."""
-    if not file.filename or not file.filename.endswith(".csv"):
+    if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="File must be a CSV")
-    content = await file.read()
+    if file.size is not None and file.size > settings.max_csv_bytes:
+        raise HTTPException(status_code=413, detail="CSV too large (max 5MB)")
+    content = await _read_limited(file, settings.max_csv_bytes, "CSV")
     try:
         fmt, parsed = parse_csv(content)
     except CSVParseError as e:

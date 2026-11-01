@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from reign.adapters.database import get_session
-from reign.adapters.repository import RecurringRepository
+from reign.adapters.repository import AccountRepository, CategoryRepository, RecurringRepository
 from reign.api.schemas import RecurringCreate, RecurringOut
 from reign.domain.models import RecurringTransaction
 from reign.exceptions import NotFoundError
@@ -22,6 +22,12 @@ async def list_recurring(session: AsyncSession = Depends(get_session)):
 async def create_recurring(
     data: RecurringCreate, session: AsyncSession = Depends(get_session)
 ):
+    try:
+        await AccountRepository(session).get(data.account_id)
+        if data.category_id is not None:
+            await CategoryRepository(session).get(data.category_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
     repo = RecurringRepository(session)
     rec = RecurringTransaction(**data.model_dump())
     rec = await repo.create(rec)

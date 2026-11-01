@@ -36,6 +36,14 @@ function formatMonthYear(d) {
   return new Date(d).toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
 }
 
+function safeColor(c) {
+  return /^#[0-9a-fA-F]{6}$/.test(c || '') ? c : '#718096';
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 let charts = [];
 
 function destroyCharts() {
@@ -115,7 +123,7 @@ async function renderView(view) {
     else if (view === 'recurring') await renderRecurring(content);
     else if (view === 'settings') await renderSettings(content);
   } catch (e) {
-    content.innerHTML = `<div class="text-red-500">Error: ${e.message}</div>`;
+    content.innerHTML = `<div class="text-red-500">Error: ${escapeHtml(e.message)}</div>`;
   }
 }
 
@@ -143,7 +151,7 @@ async function renderDashboard(container) {
       <svg class="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
       <div>
         <p class="text-sm font-medium text-amber-800 dark:text-amber-300">Budget Alert</p>
-        <p class="text-xs text-amber-700 dark:text-amber-400 mt-0.5">${overBudgets.map(b => b.category?.name + ' (' + Math.round((Math.abs(Number(b.spent||0))/Number(b.amount))*100) + '%)').join(', ')} — over 90% spent.</p>
+        <p class="text-xs text-amber-700 dark:text-amber-400 mt-0.5">${escapeHtml(overBudgets.map(b => b.category?.name + ' (' + Math.round((Math.abs(Number(b.spent||0))/Number(b.amount))*100) + '%)').join(', '))} — over 90% spent.</p>
       </div>
     </div>` : ''}
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -198,7 +206,7 @@ async function renderDashboard(container) {
             <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">Upcoming Recurring</p>
             ${recs.filter(r => r.active).slice(0, 3).map(r => `
               <div class="flex items-center justify-between py-1">
-                <span class="text-xs dark:text-gray-300">${r.description}</span>
+                <span class="text-xs dark:text-gray-300">${escapeHtml(r.description)}</span>
                 <span class="text-xs font-medium ${r.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${formatMoney(r.amount)}</span>
               </div>
             `).join('') || '<p class="text-xs text-gray-400">No active recurring.</p>'}
@@ -267,8 +275,8 @@ async function renderDashboard(container) {
     txContainer.innerHTML = txs.map(tx => `
       <div class="flex items-center justify-between py-2 border-b dark:border-gray-700 last:border-0">
         <div>
-          <p class="text-sm font-medium dark:text-gray-200">${tx.description}</p>
-          <p class="text-xs text-gray-400 dark:text-gray-500">${formatDate(tx.date)} ${tx.category ? '• ' + tx.category.name : ''}</p>
+          <p class="text-sm font-medium dark:text-gray-200">${escapeHtml(tx.description)}</p>
+          <p class="text-xs text-gray-400 dark:text-gray-500">${formatDate(tx.date)} ${tx.category ? '• ' + escapeHtml(tx.category.name) : ''}</p>
         </div>
         <span class="text-sm font-semibold ${tx.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}">
           ${tx.amount >= 0 ? '+' : ''}${formatMoney(tx.amount)}
@@ -296,11 +304,11 @@ async function renderTransactions(container) {
             <button onclick="openTransferModal()" class="text-sm px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 font-medium">Transfer</button>
             <select id="tx-account-filter" class="text-sm border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2" onchange="applyTxFilters()">
               <option value="">All accounts</option>
-              ${accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('')}
+              ${accounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('')}
             </select>
             <select id="tx-category-filter" class="text-sm border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2" onchange="applyTxFilters()">
               <option value="">All categories</option>
-              ${categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+              ${categories.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
             </select>
             <select id="tx-tag-filter" class="text-sm border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2" onchange="applyTxFilters()">
               <option value="">All tags</option>
@@ -357,18 +365,18 @@ function renderTxRows(txs) {
     return;
   }
   tbody.innerHTML = txs.map(tx => {
-    const tagList = (tx.tags || '').split(',').filter(t => t.trim()).map(t => `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 mr-1">${t.trim()}</span>`).join('');
+    const tagList = (tx.tags || '').split(',').filter(t => t.trim()).map(t => `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 mr-1">${escapeHtml(t.trim())}</span>`).join('');
     const isSplit = tx.splits && tx.splits.length > 0;
     const splitBadge = isSplit ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 ml-1">Split</span>` : '';
     const categoryDisplay = isSplit
-      ? tx.splits.map(s => s.category ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium mr-1" style="background:${s.category.color}20;color:${s.category.color}">${s.category.name}</span>` : '-').join('')
-      : (tx.category ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium" style="background:${tx.category.color}20;color:${tx.category.color}">${tx.category.name}</span>` : '-');
+      ? tx.splits.map(s => s.category ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium mr-1" style="background:${safeColor(s.category.color)}20;color:${safeColor(s.category.color)}">${escapeHtml(s.category.name)}</span>` : '-').join('')
+      : (tx.category ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium" style="background:${safeColor(tx.category.color)}20;color:${safeColor(tx.category.color)}">${escapeHtml(tx.category.name)}</span>` : '-');
     return `
     <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 ${tx.is_reconciled ? 'bg-emerald-50 dark:bg-emerald-900/20' : ''}" onclick="toggleTxDetails(${tx.id})">
       <td class="px-4 py-3"><input type="checkbox" class="tx-checkbox" value="${tx.id}" onclick="event.stopPropagation()"></td>
       <td class="px-4 py-3 whitespace-nowrap dark:text-gray-300">${formatDate(tx.date)}</td>
       <td class="px-4 py-3 dark:text-gray-300">
-        <div>${tx.description}</div>
+        <div>${escapeHtml(tx.description)}</div>
         ${tagList ? `<div class="mt-1">${tagList}</div>` : ''}
       </td>
       <td class="px-4 py-3">
@@ -388,8 +396,8 @@ function renderTxRows(txs) {
     </tr>
     ${(tx.notes || isSplit) ? `<tr id="tx-details-${tx.id}" class="hidden border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
       <td colspan="6" class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 space-y-1">
-        ${tx.notes ? `<div><span class="font-medium">Notes:</span> ${tx.notes}</div>` : ''}
-        ${isSplit ? `<div><span class="font-medium">Splits:</span> ${tx.splits.map(s => `${s.category ? s.category.name : 'Uncategorized'}: ${formatMoney(s.amount)}`).join(', ')}</div>` : ''}
+        ${tx.notes ? `<div><span class="font-medium">Notes:</span> ${escapeHtml(tx.notes)}</div>` : ''}
+        ${isSplit ? `<div><span class="font-medium">Splits:</span> ${tx.splits.map(s => `${s.category ? escapeHtml(s.category.name) : 'Uncategorized'}: ${formatMoney(s.amount)}`).join(', ')}</div>` : ''}
       </td>
     </tr>` : ''}
   `}).join('');
@@ -433,7 +441,7 @@ function populateTagFilter(txs) {
   const sel = document.getElementById('tx-tag-filter');
   if (!sel) return;
   const current = sel.value;
-  sel.innerHTML = '<option value="">All tags</option>' + Array.from(allTags).sort().map(t => `<option value="${t}">${t}</option>`).join('');
+  sel.innerHTML = '<option value="">All tags</option>' + Array.from(allTags).sort().map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
   sel.value = current;
 }
 
@@ -477,10 +485,10 @@ async function openTxModal(prefill = {}) {
   if (!modalCategories.length) modalCategories = await apiGet('/api/categories');
 
   const accSel = document.getElementById('tx-account-select');
-  accSel.innerHTML = modalAccounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+  accSel.innerHTML = modalAccounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('');
 
   const catSel = document.getElementById('tx-category-select');
-  catSel.innerHTML = `<option value="">-- None --</option>` + modalCategories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  catSel.innerHTML = `<option value="">-- None --</option>` + modalCategories.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
 
   // Reset split UI
   document.getElementById('tx-is-split').checked = false;
@@ -543,7 +551,7 @@ function addSplitRow(data = null) {
   row.innerHTML = `
     <select class="tx-split-cat text-sm border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2">
       <option value="">-- Category --</option>
-      ${modalCategories.map(c => `<option value="${c.id}" ${data && data.category_id == c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
+      ${modalCategories.map(c => `<option value="${c.id}" ${data && data.category_id == c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}
     </select>
     <input type="number" step="0.01" placeholder="Amount" class="tx-split-amt w-28 text-sm border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2" value="${data ? Math.abs(data.amount) : ''}">
     <button type="button" onclick="this.parentElement.remove(); updateSplitTotal();" class="text-gray-400 hover:text-rose-600">
@@ -692,7 +700,7 @@ function refreshTemplateSelect() {
   const sel = document.getElementById('tx-template-select');
   const tpls = getTemplates();
   sel.innerHTML = `<option value="">-- ${tpls.length} template(s) --</option>` +
-    tpls.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+    tpls.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
 }
 
 // ============== BULK EDIT ==============
@@ -701,7 +709,7 @@ async function openBulkModal() {
   if (!ids.length) return;
   if (!modalCategories.length) modalCategories = await apiGet('/api/categories');
   const catSel = document.getElementById('bulk-category');
-  catSel.innerHTML = `<option value="">-- No change --</option>` + modalCategories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  catSel.innerHTML = `<option value="">-- No change --</option>` + modalCategories.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
   document.getElementById('bulk-date').value = '';
   document.getElementById('bulk-modal').classList.remove('hidden');
 }
@@ -731,7 +739,7 @@ async function openTransferModal() {
   if (!modalAccounts.length) modalAccounts = await apiGet('/api/accounts');
   const fromSel = document.getElementById('transfer-from-account');
   const toSel = document.getElementById('transfer-to-account');
-  const opts = modalAccounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+  const opts = modalAccounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('');
   fromSel.innerHTML = opts;
   toSel.innerHTML = opts;
   if (modalAccounts.length > 1) toSel.selectedIndex = 1;
@@ -832,7 +840,7 @@ async function renderAccounts(container) {
         <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4 shadow-sm flex flex-col justify-between">
           <div>
             <div class="flex items-center justify-between">
-              <h4 class="font-semibold text-sm dark:text-gray-200">${a.name}</h4>
+              <h4 class="font-semibold text-sm dark:text-gray-200">${escapeHtml(a.name)}</h4>
               <span class="text-xs text-gray-400 uppercase">${a.type}</span>
             </div>
             <p class="text-xl font-bold mt-2 dark:text-gray-100">${formatMoney(a.initial_balance, a.currency)}</p>
@@ -873,7 +881,7 @@ async function renderBudgets(container) {
       <form onsubmit="createBudget(event)" class="flex gap-3 flex-wrap">
         <select name="category_id" class="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm" required>
           <option value="">Select category</option>
-          ${categories.filter(c => c.type === 'expense').map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+          ${categories.filter(c => c.type === 'expense').map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
         </select>
         <input name="amount" type="number" placeholder="Budget amount" class="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm" required>
         <select name="currency" class="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm">
@@ -897,7 +905,7 @@ async function renderBudgets(container) {
         return `
         <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4 shadow-sm">
           <div class="flex items-center justify-between mb-2">
-            <span class="font-medium text-sm dark:text-gray-200">${b.category?.name || 'Unknown'}</span>
+            <span class="font-medium text-sm dark:text-gray-200">${escapeHtml(b.category?.name ?? "") || 'Unknown'}</span>
             <span class="text-xs text-gray-500 dark:text-gray-400">${formatMoney(b.spent || 0)} / ${formatMoney(b.amount, b.currency)}</span>
           </div>
           <div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2">
@@ -952,11 +960,11 @@ async function renderCategories(container) {
           ${categories.map(c => `
             <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
               <td class="px-4 py-3 flex items-center gap-2 dark:text-gray-300">
-                <span class="w-3 h-3 rounded-full inline-block" style="background:${c.color}"></span>
-                ${c.name}
+                <span class="w-3 h-3 rounded-full inline-block" style="background:${safeColor(c.color)}"></span>
+                ${escapeHtml(c.name)}
               </td>
               <td class="px-4 py-3 capitalize dark:text-gray-300">${c.type}</td>
-              <td class="px-4 py-3 text-gray-400 dark:text-gray-500 text-xs">${c.keywords || '-'}</td>
+              <td class="px-4 py-3 text-gray-400 dark:text-gray-500 text-xs">${escapeHtml(c.keywords || '-')}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -997,7 +1005,7 @@ async function renderGoals(container) {
         const pct = Math.min(100, (Number(g.current_amount) / Number(g.target_amount)) * 100);
         return `
         <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4 shadow-sm">
-          <h4 class="font-semibold text-sm dark:text-gray-200">${g.name}</h4>
+          <h4 class="font-semibold text-sm dark:text-gray-200">${escapeHtml(g.name)}</h4>
           <p class="text-2xl font-bold mt-1 dark:text-gray-100">${formatMoney(g.current_amount, g.currency)} <span class="text-sm font-normal text-gray-400">/ ${formatMoney(g.target_amount, g.currency)}</span></p>
           <div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2 mt-3">
             <div class="bg-emerald-500 h-2 rounded-full transition-all" style="width: ${pct}%"></div>
@@ -1052,7 +1060,7 @@ async function renderForecast(container) {
         <div class="space-y-2">
           ${data.recurring.map(r => `
             <div class="flex items-center justify-between py-2 border-b dark:border-gray-700 text-sm">
-              <span class="dark:text-gray-300">${r.description}</span>
+              <span class="dark:text-gray-300">${escapeHtml(r.description)}</span>
               <span class="font-medium ${r.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${r.amount >= 0 ? '+' : ''}${formatMoney(r.amount)}</span>
             </div>
           `).join('')}
@@ -1187,8 +1195,8 @@ async function showDayTransactions(day) {
     content.innerHTML = txs.map(tx => `
       <div class="flex items-center justify-between py-2 border-b dark:border-gray-700 last:border-0">
         <div>
-          <p class="text-sm font-medium dark:text-gray-200">${tx.description}</p>
-          <p class="text-xs text-gray-400 dark:text-gray-500">${tx.category?.name || 'Uncategorized'} ${tx.tags ? '· ' + tx.tags : ''}</p>
+          <p class="text-sm font-medium dark:text-gray-200">${escapeHtml(tx.description)}</p>
+          <p class="text-xs text-gray-400 dark:text-gray-500">${escapeHtml(tx.category?.name || 'Uncategorized')} ${tx.tags ? '· ' + escapeHtml(tx.tags) : ''}</p>
         </div>
         <span class="text-sm font-semibold ${tx.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${tx.amount >= 0 ? '+' : ''}${formatMoney(tx.amount)}</span>
       </div>
@@ -1215,11 +1223,11 @@ async function renderRecurring(container) {
         <input name="amount" type="number" step="0.01" placeholder="Amount" class="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm" required>
         <input name="day_of_month" type="number" min="1" max="31" placeholder="Day" class="w-20 border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm" required>
         <select name="account_id" class="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm">
-          ${accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('')}
+          ${accounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('')}
         </select>
         <select name="category_id" class="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm">
           <option value="">-- Category --</option>
-          ${categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+          ${categories.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
         </select>
         <select name="currency" class="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm">
           <option value="IDR">IDR</option>
@@ -1237,10 +1245,10 @@ async function renderRecurring(container) {
         <tbody>
           ${recs.length === 0 ? `<tr><td colspan="6" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">No recurring transactions.</td></tr>` : recs.map(r => `
             <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
-              <td class="px-4 py-3 dark:text-gray-300">${r.description}</td>
+              <td class="px-4 py-3 dark:text-gray-300">${escapeHtml(r.description)}</td>
               <td class="px-4 py-3 font-medium ${r.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${r.amount >= 0 ? '+' : ''}${formatMoney(r.amount)}</td>
               <td class="px-4 py-3 dark:text-gray-300">Day ${r.day_of_month}</td>
-              <td class="px-4 py-3">${r.category ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium" style="background:${r.category.color}20;color:${r.category.color}">${r.category.name}</span>` : '-'}</td>
+              <td class="px-4 py-3">${r.category ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium" style="background:${safeColor(r.category.color)}20;color:${safeColor(r.category.color)}">${escapeHtml(r.category.name)}</span>` : '-'}</td>
               <td class="px-4 py-3"><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${r.active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}">${r.active ? 'Active' : 'Inactive'}</span></td>
               <td class="px-4 py-3 text-right">
                 <button onclick="deleteRecurring(${r.id})" class="text-gray-400 hover:text-rose-600 dark:hover:text-rose-400">
@@ -1298,12 +1306,12 @@ async function importCSV(input) {
   const previewHTML = preview.preview.map((row, i) => `
     <tr class="border-b dark:border-gray-700">
       <td class="px-3 py-2 text-xs dark:text-gray-300">${row.date}</td>
-      <td class="px-3 py-2 text-xs dark:text-gray-300">${row.description}</td>
+      <td class="px-3 py-2 text-xs dark:text-gray-300">${escapeHtml(row.description)}</td>
       <td class="px-3 py-2 text-xs font-medium ${row.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${formatMoney(row.amount)}</td>
     </tr>
   `).join('');
 
-  const confirmed = confirm(`Detected ${preview.total} transactions (${preview.format} format).\n\nFirst 10 rows preview:\n${preview.preview.map(r => `${r.date} | ${r.description} | ${r.amount}`).join('\n')}\n\nImport to account "${accounts[0]?.name}"?`);
+  const confirmed = confirm(`Detected ${preview.total} transactions (${preview.format} format).\n\nFirst 10 rows preview:\n${preview.preview.map(r => `${r.date} | ${escapeHtml(r.description)} | ${r.amount}`).join('\n')}\n\nImport to account "${escapeHtml(accounts[0]?.name ?? '')}"?`);
   if (!confirmed) return;
 
   const form = new FormData();
@@ -1312,10 +1320,10 @@ async function importCSV(input) {
   const result = await r.json();
   const status = document.getElementById('import-status');
   if (r.ok) {
-    status.innerHTML = `<span class="text-emerald-600 font-medium">✓ ${result.message}</span>`;
+    status.textContent = '✓ ' + result.message;
     renderView('transactions');
   } else {
-    status.innerHTML = `<span class="text-rose-600">Error: ${result.detail || 'Import failed'}</span>`;
+    status.textContent = 'Error: ' + (result.detail || 'Import failed');
   }
 }
 
@@ -1375,7 +1383,7 @@ async function renderSettings(container) {
           </div>
           <div class="flex items-center justify-between text-sm">
             <span class="text-gray-500 dark:text-gray-400">Last backup:</span>
-            <span class="font-medium dark:text-gray-200">${lastRun === 'Never' ? 'Never' : new Date(lastRun).toLocaleString()}</span>
+            <span class="font-medium dark:text-gray-200">${escapeHtml(lastRun === 'Never' ? 'Never' : new Date(lastRun).toLocaleString())}</span>
           </div>
           <button onclick="triggerBackupNow()" class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0l-4 4m4-4v12"/></svg>
