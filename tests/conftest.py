@@ -1,14 +1,16 @@
 """Global pytest fixtures."""
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from reign.adapters.database import Base
+from reign.adapters.database import AsyncSessionLocal, Base, init_db
+from reign.utils.seed import seed_categories, seed_demo_account
 
 
 @pytest.fixture
 def sample_transactions() -> list[dict]:
-    """Return sample transaction dicts for testing."""
+    """Sample payloads for transaction tests."""
     return [
         {
             "date": "2026-04-01",
@@ -29,39 +31,35 @@ def sample_transactions() -> list[dict]:
 
 async def init_test_db(db_path: str):
     """Create isolated test engine + session factory with tables + seed."""
-    from reign.utils.seed import seed_categories, seed_demo_account
-
     test_engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}")
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    TestSession = async_sessionmaker(test_engine, expire_on_commit=False)
-    async with TestSession() as s:
+    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with factory() as s:
         await seed_categories(s)
         await seed_demo_account(s)
-    return test_engine, TestSession
+    return test_engine, factory
+
+
+_CLEAN_TABLES = (
+    "transaction_splits",
+    "transactions",
+    "budgets",
+    "goals",
+    "recurring_transactions",
+    "accounts",
+    "categories",
+    "app_settings",
+)
 
 
 @pytest.fixture(autouse=True)
 async def _clean_db():
-    """Ensure tables exist, wipe data, reseed — keeps legacy tests green."""
-    from sqlalchemy import text
-
-    from reign.adapters.database import AsyncSessionLocal, init_db
-    from reign.utils.seed import seed_categories, seed_demo_account
-
+    """Ensure tables exist, wipe data, reseed - keeps legacy tests green."""
     await init_db()
     async with AsyncSessionLocal() as s:
-        for tbl in (
-            "transaction_splits",
-            "transactions",
-            "budgets",
-            "goals",
-            "recurring_transactions",
-            "accounts",
-            "categories",
-            "app_settings",
-        ):
-            await s.execute(text(f"DELETE FROM {tbl}"))
+        for tbl in _CLEAN_TABLES:
+            await s.execute(text(f"DELETE FROM {tbl}"))  # noqa: S608
         await s.commit()
         await seed_categories(s)
         await seed_demo_account(s)

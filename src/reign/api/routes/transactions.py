@@ -1,12 +1,16 @@
 """Transaction API routes."""
+
 import csv
 import io
 import json
+from dataclasses import dataclass
 from datetime import date as date_cls
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from reign.adapters.database import get_session
 from reign.adapters.repository import TransactionRepository
@@ -26,35 +30,38 @@ from reign.services.csv_parser import parse_csv
 router = APIRouter()
 
 
+@dataclass
+class TransactionListFilter:
+    account_id: int | None = None
+    category_id: int | None = None
+    start_date: date_cls | None = None
+    end_date: date_cls | None = None
+    q: str | None = None
+    tag: str | None = None
+    limit: int = 500
+    offset: int = 0
+
+
 @router.get("", response_model=list[TransactionOut])
 async def list_transactions(
-    account_id: int | None = None,
-    category_id: int | None = None,
-    start_date: date_cls | None = None,
-    end_date: date_cls | None = None,
-    q: str | None = None,
-    tag: str | None = None,
-    limit: int = Query(500, ge=1, le=2000),
-    offset: int = Query(0, ge=0),
+    filters: TransactionListFilter = Depends(),
     session: AsyncSession = Depends(get_session),
 ):
     repo = TransactionRepository(session)
     return await repo.list(
-        account_id=account_id,
-        category_id=category_id,
-        start_date=start_date,
-        end_date=end_date,
-        q=q,
-        tag=tag,
-        limit=limit,
-        offset=offset,
+        account_id=filters.account_id,
+        category_id=filters.category_id,
+        start_date=filters.start_date,
+        end_date=filters.end_date,
+        q=filters.q,
+        tag=filters.tag,
+        limit=filters.limit,
+        offset=filters.offset,
     )
 
 
 @router.post("", response_model=TransactionOut, status_code=201)
-async def create_transaction(
-    data: TransactionCreate, session: AsyncSession = Depends(get_session)
-):
+async def create_transaction(data: TransactionCreate, session: AsyncSession = Depends(get_session)):
     repo = TransactionRepository(session)
     tx = Transaction(**{k: v for k, v in data.model_dump().items() if k != "splits"})
     splits = None
@@ -71,11 +78,7 @@ async def create_transaction(
 
 
 @router.get("/{transaction_id}", response_model=TransactionOut)
-async def get_transaction(
-    transaction_id: int, session: AsyncSession = Depends(get_session)
-):
-    from sqlalchemy import select
-    from sqlalchemy.orm import selectinload
+async def get_transaction(transaction_id: int, session: AsyncSession = Depends(get_session)):
     result = await session.execute(
         select(Transaction)
         .options(
@@ -115,9 +118,7 @@ async def update_transaction(
 
 
 @router.post("/transfer", status_code=201)
-async def create_transfer(
-    data: TransferCreate, session: AsyncSession = Depends(get_session)
-):
+async def create_transfer(data: TransferCreate, session: AsyncSession = Depends(get_session)):
     """Create a transfer between two accounts."""
     repo = TransactionRepository(session)
     from_tx = Transaction(
@@ -147,9 +148,7 @@ async def create_transfer(
 
 
 @router.delete("/{transaction_id}")
-async def delete_transaction(
-    transaction_id: int, session: AsyncSession = Depends(get_session)
-):
+async def delete_transaction(transaction_id: int, session: AsyncSession = Depends(get_session)):
     repo = TransactionRepository(session)
     try:
         await repo.delete(transaction_id)
@@ -159,27 +158,21 @@ async def delete_transaction(
 
 
 @router.post("/bulk-delete")
-async def bulk_delete(
-    data: BulkIds, session: AsyncSession = Depends(get_session)
-):
+async def bulk_delete(data: BulkIds, session: AsyncSession = Depends(get_session)):
     repo = TransactionRepository(session)
     await repo.bulk_delete(data.ids)
     return {"message": f"Deleted {len(data.ids)} transactions"}
 
 
 @router.post("/bulk-reconcile")
-async def bulk_reconcile(
-    data: BulkIds, session: AsyncSession = Depends(get_session)
-):
+async def bulk_reconcile(data: BulkIds, session: AsyncSession = Depends(get_session)):
     repo = TransactionRepository(session)
     await repo.bulk_reconcile(data.ids)
     return {"message": f"Reconciled {len(data.ids)} transactions"}
 
 
 @router.post("/bulk-update")
-async def bulk_update(
-    data: BulkUpdate, session: AsyncSession = Depends(get_session)
-):
+async def bulk_update(data: BulkUpdate, session: AsyncSession = Depends(get_session)):
     repo = TransactionRepository(session)
     await repo.bulk_update(data.ids, category_id=data.category_id, date=data.date)
     return {"message": f"Updated {len(data.ids)} transactions"}
@@ -262,18 +255,31 @@ async def export_csv(
     )
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["date", "description", "amount", "currency", "category", "tags", "transaction_type", "account_id"])
+    writer.writerow(
+        [
+            "date",
+            "description",
+            "amount",
+            "currency",
+            "category",
+            "tags",
+            "transaction_type",
+            "account_id",
+        ]
+    )
     for tx in txs:
-        writer.writerow([
-            tx.date.isoformat(),
-            tx.description,
-            str(tx.amount),
-            tx.currency,
-            tx.category.name if tx.category else "",
-            tx.tags or "",
-            tx.transaction_type,
-            tx.account_id,
-        ])
+        writer.writerow(
+            [
+                tx.date.isoformat(),
+                tx.description,
+                str(tx.amount),
+                tx.currency,
+                tx.category.name if tx.category else "",
+                tx.tags or "",
+                tx.transaction_type,
+                tx.account_id,
+            ]
+        )
     output.seek(0)
     return StreamingResponse(
         io.BytesIO(output.getvalue().encode("utf-8")),

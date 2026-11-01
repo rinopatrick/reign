@@ -73,7 +73,7 @@ async def do_auto_backup() -> str | None:
 
     BACKUPS_DIR.mkdir(exist_ok=True)
     filepath = BACKUPS_DIR / f"reign_auto_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.json"
-    with open(filepath, "w", encoding="utf-8") as f:
+    with filepath.open("w", encoding="utf-8") as f:
         json.dump(data, f, cls=DecimalEncoder, indent=2)
 
     # Clean old auto-backups
