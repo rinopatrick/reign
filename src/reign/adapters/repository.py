@@ -26,6 +26,8 @@ from reign.exceptions import NotFoundError
 
 @dataclass
 class TransactionListFilter:
+    """Bundled transaction list filters (keeps the repository signature small)."""
+
     account_id: int | None = None
     category_id: int | None = None
     start_date: date | None = None
