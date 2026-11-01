@@ -20,6 +20,7 @@ from reign.api.routes.recurring import router as recurring_router
 from reign.api.routes.reports import router as reports_router
 from reign.api.routes.settings import router as settings_router
 from reign.api.routes.transactions import router as transactions_router
+from reign.config import settings
 from reign.logging import setup_logging
 from reign.utils.seed import seed_categories, seed_demo_account
 
@@ -44,10 +45,10 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=settings.cors_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Content-Type", "Accept"],
 )
 
 app.include_router(accounts_router, prefix="/api/accounts", tags=["accounts"])
