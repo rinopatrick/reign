@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -19,7 +20,24 @@ from reign.domain.models import (
     Transaction,
     TransactionSplit,
 )
+from reign.domain.period import Period
 from reign.exceptions import NotFoundError
+
+
+@dataclass
+class TransactionListFilter:
+    """Bundled transaction list filters (keeps the repository signature small)."""
+
+    account_id: int | None = None
+    category_id: int | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    q: str | None = None
+    tag: str | None = None
+    include_deleted: bool = False
+    limit: int = 500
+    offset: int = 0
+    after_id: int | None = None
 
 
 class AccountRepository:
@@ -83,20 +101,8 @@ class TransactionRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def list(
-        self,
-        *,
-        account_id: int | None = None,
-        category_id: int | None = None,
-        start_date: date | None = None,
-        end_date: date | None = None,
-        q: str | None = None,
-        tag: str | None = None,
-        include_deleted: bool = False,
-        limit: int = 500,
-        offset: int = 0,
-        after_id: int | None = None,
-    ) -> Sequence[Transaction]:
+    async def list(self, filters: TransactionListFilter | None = None) -> Sequence[Transaction]:
+        f = filters or TransactionListFilter()
         stmt = (
             select(Transaction)
             .options(
@@ -105,34 +111,34 @@ class TransactionRepository:
             )
             .order_by(Transaction.id.desc())
         )
-        if after_id is not None:
-            stmt = stmt.where(Transaction.id < after_id)
-        if not include_deleted:
+        if f.after_id is not None:
+            stmt = stmt.where(Transaction.id < f.after_id)
+        if not f.include_deleted:
             stmt = stmt.where(Transaction.is_deleted.is_(False))
-        if account_id:
-            stmt = stmt.where(Transaction.account_id == account_id)
-        if category_id:
+        if f.account_id:
+            stmt = stmt.where(Transaction.account_id == f.account_id)
+        if f.category_id:
             stmt = stmt.where(
                 or_(
-                    Transaction.category_id == category_id,
-                    Transaction.splits.any(TransactionSplit.category_id == category_id),
+                    Transaction.category_id == f.category_id,
+                    Transaction.splits.any(TransactionSplit.category_id == f.category_id),
                 )
             )
-        if start_date:
-            stmt = stmt.where(Transaction.date >= start_date)
-        if end_date:
-            stmt = stmt.where(Transaction.date <= end_date)
-        if q:
+        if f.start_date:
+            stmt = stmt.where(Transaction.date >= f.start_date)
+        if f.end_date:
+            stmt = stmt.where(Transaction.date <= f.end_date)
+        if f.q:
             stmt = stmt.where(
                 or_(
-                    Transaction.description.ilike(f"%{q}%"),
-                    Transaction.notes.ilike(f"%{q}%"),
-                    Transaction.tags.ilike(f"%{q}%"),
+                    Transaction.description.ilike(f"%{f.q}%"),
+                    Transaction.notes.ilike(f"%{f.q}%"),
+                    Transaction.tags.ilike(f"%{f.q}%"),
                 )
             )
-        if tag:
-            stmt = stmt.where(Transaction.tags.ilike(f"%{tag}%"))
-        result = await self._session.execute(stmt.limit(limit).offset(offset))
+        if f.tag:
+            stmt = stmt.where(Transaction.tags.ilike(f"%{f.tag}%"))
+        result = await self._session.execute(stmt.limit(f.limit).offset(f.offset))
         return result.scalars().all()
 
     async def create(
@@ -318,8 +324,6 @@ class TransactionRepository:
 
     async def get_monthly_trends(self, months: int = 6, currency: str = "IDR") -> list[dict]:
         """Return income/expense per month for the last N months (calendar-correct)."""
-        from reign.domain.period import Period
-
         now = datetime.now()
         current = Period.from_raw(now.year, now.month, currency)
         start = current.add_months(-(months - 1))

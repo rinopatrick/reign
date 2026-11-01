@@ -27,3 +27,6 @@ frontend/out/
 frontend/node_modules/
 migrate.py
 backups/
+.pi/
+reign.db-shm
+reign.db-wal

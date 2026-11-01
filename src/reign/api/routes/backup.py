@@ -18,6 +18,7 @@ from reign.adapters.repository import (
     AccountRepository,
     CategoryRepository,
     GoalRepository,
+    TransactionListFilter,
     TransactionRepository,
 )
 from reign.config import settings
@@ -50,7 +51,8 @@ async def _collect_backup_data(session) -> dict:
     """Single place that builds the full backup payload (no duplication)."""
     accounts = await AccountRepository(session).list()
     categories = await CategoryRepository(session).list()
-    transactions = await TransactionRepository(session).list(include_deleted=True)
+    tx_filters = TransactionListFilter(include_deleted=True)
+    transactions = await TransactionRepository(session).list(tx_filters)
     goals = await GoalRepository(session).list()
     result = await session.execute(select(Budget))
     budgets = result.scalars().all()

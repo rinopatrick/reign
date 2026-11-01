@@ -12,7 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from reign.adapters.database import get_session
-from reign.adapters.repository import AccountRepository, CategoryRepository, TransactionRepository
+from reign.adapters.repository import (
+    AccountRepository,
+    CategoryRepository,
+    TransactionListFilter,
+    TransactionRepository,
+)
 from reign.api.schemas import (
     BulkIds,
     BulkUpdate,
@@ -38,7 +43,7 @@ async def list_transactions(
     session: AsyncSession = Depends(get_session),
 ):
     repo = TransactionRepository(session)
-    return await repo.list(
+    filters = TransactionListFilter(
         account_id=params.account_id,
         category_id=params.category_id,
         start_date=params.start_date,
@@ -49,6 +54,7 @@ async def list_transactions(
         offset=params.offset,
         after_id=params.after_id,
     )
+    return await repo.list(filters)
 
 
 @router.post("", response_model=TransactionOut, status_code=201)
@@ -266,12 +272,10 @@ async def export_csv(
 ):
     """Export transactions as CSV."""
     repo = TransactionRepository(session)
-    txs = await repo.list(
-        account_id=account_id,
-        start_date=start_date,
-        end_date=end_date,
-        limit=2000,
+    filters = TransactionListFilter(
+        account_id=account_id, start_date=start_date, end_date=end_date, limit=2000
     )
+    txs = await repo.list(filters)
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(
@@ -316,12 +320,10 @@ async def export_json(
 ):
     """Export transactions as JSON."""
     repo = TransactionRepository(session)
-    txs = await repo.list(
-        account_id=account_id,
-        start_date=start_date,
-        end_date=end_date,
-        limit=2000,
+    filters = TransactionListFilter(
+        account_id=account_id, start_date=start_date, end_date=end_date, limit=2000
     )
+    txs = await repo.list(filters)
     data = [
         {
             "id": tx.id,
