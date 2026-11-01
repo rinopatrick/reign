@@ -119,7 +119,6 @@ GENERIC_DATE_FORMATS = ("%d/%m/%Y", "%Y-%m-%d", "%m/%d/%Y", "%d-%m-%Y")
 
 
 def _parse_flexible_date(date_str: str):
-    """Try known date formats, return datetime or None."""
     for fmt in GENERIC_DATE_FORMATS:
         try:
             return datetime.strptime(date_str, fmt)
@@ -129,11 +128,9 @@ def _parse_flexible_date(date_str: str):
 
 
 def _parse_generic_amount(row: dict, amt_key, debit_key, credit_key):
-    """Return Decimal amount or None when the row has no usable amount."""
     try:
         if amt_key:
-            amt_clean = row.get(amt_key, "").strip().replace(",", "")
-            return Decimal(amt_clean)
+            return Decimal(row.get(amt_key, "").strip().replace(",", ""))
         if debit_key or credit_key:
             debit = (
                 row.get(debit_key, "").strip().replace(",", "").replace(".", "")
@@ -155,7 +152,6 @@ def _parse_generic_amount(row: dict, amt_key, debit_key, credit_key):
 
 
 def _generic_keys(rows: list[dict]):
-    """Detect date/desc/amount column keys for the generic fallback."""
     keys = list(rows[0].keys())
     date_key = next((k for k in keys if "date" in k.lower() or "tanggal" in k.lower()), None)
     desc_key = next(

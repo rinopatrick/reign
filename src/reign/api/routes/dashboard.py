@@ -19,7 +19,9 @@ async def dashboard_summary(currency: str = "IDR", session: AsyncSession = Depen
     tx_repo = TransactionRepository(session)
 
     accounts = await account_repo.list()
-    total_balance = sum(a.initial_balance for a in accounts if a.currency == currency)
+    initial = sum(a.initial_balance for a in accounts if a.currency == currency)
+    tx_total = await tx_repo.get_balance_total(currency)
+    total_balance = initial + tx_total
 
     summary = await tx_repo.get_summary(now.year, now.month, currency)
 
