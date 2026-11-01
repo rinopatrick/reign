@@ -1,10 +1,15 @@
 """Desktop entry point — bundles server + browser into one experience."""
 
+import logging
+import multiprocessing
 import os
+import socket
 import sys
 import time
 import webbrowser
 from pathlib import Path
+
+logger = logging.getLogger("reign.desktop")
 
 
 def get_data_dir() -> Path:
@@ -22,7 +27,7 @@ def get_data_dir() -> Path:
 
 def _run_server(host: str, port: int) -> None:
     """Server worker (runs in a child process)."""
-    import uvicorn
+    import uvicorn  # noqa: PLC0415  # lazy: child process only
 
     uvicorn.run(
         "reign.api.app:app",
@@ -44,8 +49,6 @@ def main() -> None:
     os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{db_path}"
     os.environ["REIGN_BACKUPS_DIR"] = str(backups_dir)
 
-    import socket
-
     host = "127.0.0.1"
     port = 8000
 
@@ -55,8 +58,6 @@ def main() -> None:
             port = s.getsockname()[1]
 
     url = f"http://{host}:{port}"
-
-    import multiprocessing
 
     ctx = multiprocessing.get_context("spawn")
     proc = ctx.Process(target=_run_server, args=(host, port), daemon=True)
@@ -69,11 +70,11 @@ def main() -> None:
             if s.connect_ex((host, port)) == 0:
                 break
     else:
-        print("Server failed to start.", file=sys.stderr)
+        logger.error("Server failed to start.")
         proc.terminate()
         sys.exit(1)
 
-    print(f"Opening Reign at {url}")
+    logger.info("Opening Reign at %s", url)
     webbrowser.open(url)
 
     try:

@@ -34,19 +34,25 @@ async def test_categories_seeded(client):
 @pytest.mark.asyncio
 async def test_create_account_and_transaction(client):
     # Create account
-    r = await client.post("/api/accounts", json={"name": "Test", "type": "cash", "currency": "IDR", "initial_balance": 0})
+    r = await client.post(
+        "/api/accounts",
+        json={"name": "Test", "type": "cash", "currency": "IDR", "initial_balance": 0},
+    )
     assert r.status_code == 201
     test_account = r.json()
 
     # Create transaction (current month so dashboard summary reflects it)
     today = datetime.now().strftime("%Y-%m-%d")
-    r = await client.post("/api/transactions", json={
-        "date": today,
-        "description": "COFFEE SHOP",
-        "amount": -50000,
-        "currency": "IDR",
-        "account_id": test_account["id"],
-    })
+    r = await client.post(
+        "/api/transactions",
+        json={
+            "date": today,
+            "description": "COFFEE SHOP",
+            "amount": -50000,
+            "currency": "IDR",
+            "account_id": test_account["id"],
+        },
+    )
     assert r.status_code == 201
     tx = r.json()
     assert tx["description"] == "COFFEE SHOP"
@@ -64,7 +70,9 @@ async def test_csv_import(client):
     accounts = r.json()
     account = next(a for a in accounts if a["name"] == "Cash")
 
-    csv_content = b"Tanggal,Keterangan,Mutasi\n15/04/2026,STARBUCKS,-75.000\n16/04/2026,SALARY,+15.000.000\n"
+    csv_content = (
+        b"Tanggal,Keterangan,Mutasi\n15/04/2026,STARBUCKS,-75.000\n16/04/2026,SALARY,+15.000.000\n"
+    )
     r = await client.post(
         f"/api/transactions/import?account_id={account['id']}",
         files={"file": ("test.csv", csv_content, "text/csv")},

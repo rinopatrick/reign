@@ -1,4 +1,5 @@
 """Dashboard aggregation routes."""
+
 from datetime import datetime
 
 from fastapi import APIRouter, Depends
@@ -12,9 +13,7 @@ router = APIRouter()
 
 
 @router.get("/summary", response_model=DashboardSummary)
-async def dashboard_summary(
-    currency: str = "IDR", session: AsyncSession = Depends(get_session)
-):
+async def dashboard_summary(currency: str = "IDR", session: AsyncSession = Depends(get_session)):
     now = datetime.now()
     account_repo = AccountRepository(session)
     tx_repo = TransactionRepository(session)

@@ -1,4 +1,5 @@
 """Recurring transaction API routes."""
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,9 +20,7 @@ async def list_recurring(session: AsyncSession = Depends(get_session)):
 
 
 @router.post("", response_model=RecurringOut, status_code=201)
-async def create_recurring(
-    data: RecurringCreate, session: AsyncSession = Depends(get_session)
-):
+async def create_recurring(data: RecurringCreate, session: AsyncSession = Depends(get_session)):
     repo = RecurringRepository(session)
     rec = RecurringTransaction(**data.model_dump())
     rec = await repo.create(rec)
@@ -29,9 +28,7 @@ async def create_recurring(
 
 
 @router.delete("/{rec_id}")
-async def delete_recurring(
-    rec_id: int, session: AsyncSession = Depends(get_session)
-):
+async def delete_recurring(rec_id: int, session: AsyncSession = Depends(get_session)):
     repo = RecurringRepository(session)
     try:
         await repo.delete(rec_id)

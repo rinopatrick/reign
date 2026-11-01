@@ -1,4 +1,5 @@
 """Backup/restore API routes."""
+
 import asyncio
 import json
 from datetime import date, datetime, timedelta
@@ -65,15 +66,48 @@ async def do_auto_backup() -> str | None:
         goals = await GoalRepository(session).list()
 
     data = {
-        "accounts": [{"id": a.id, "name": a.name, "type": a.type, "currency": a.currency, "initial_balance": a.initial_balance} for a in accounts],
-        "categories": [{"id": c.id, "name": c.name, "type": c.type, "color": c.color, "keywords": c.keywords} for c in categories],
-        "transactions": [{"id": t.id, "date": str(t.date), "description": t.description, "amount": t.amount, "currency": t.currency, "account_id": t.account_id, "category_id": t.category_id, "is_reconciled": t.is_reconciled} for t in transactions],
-        "goals": [{"id": g.id, "name": g.name, "target_amount": g.target_amount, "current_amount": g.current_amount, "currency": g.currency} for g in goals],
+        "accounts": [
+            {
+                "id": a.id,
+                "name": a.name,
+                "type": a.type,
+                "currency": a.currency,
+                "initial_balance": a.initial_balance,
+            }
+            for a in accounts
+        ],
+        "categories": [
+            {"id": c.id, "name": c.name, "type": c.type, "color": c.color, "keywords": c.keywords}
+            for c in categories
+        ],
+        "transactions": [
+            {
+                "id": t.id,
+                "date": str(t.date),
+                "description": t.description,
+                "amount": t.amount,
+                "currency": t.currency,
+                "account_id": t.account_id,
+                "category_id": t.category_id,
+                "is_reconciled": t.is_reconciled,
+            }
+            for t in transactions
+        ],
+        "goals": [
+            {
+                "id": g.id,
+                "name": g.name,
+                "target_amount": g.target_amount,
+                "current_amount": g.current_amount,
+                "currency": g.currency,
+            }
+            for g in goals
+        ],
     }
 
     BACKUPS_DIR.mkdir(exist_ok=True)
     filepath = BACKUPS_DIR / f"reign_auto_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.json"
-    with open(filepath, "w", encoding="utf-8") as f:
+    with filepath.open("w", encoding="utf-8") as f:
         json.dump(data, f, cls=DecimalEncoder, indent=2)
 
     # Clean old auto-backups
@@ -93,7 +127,9 @@ async def backup_scheduler():
     while True:
         try:
             async with AsyncSessionLocal() as session:
-                enabled = (await _get_setting(session, "auto_backup_enabled", "false")).lower() == "true"
+                enabled = (
+                    await _get_setting(session, "auto_backup_enabled", "false")
+                ).lower() == "true"
                 if not enabled:
                     await asyncio.sleep(3600)
                     continue
@@ -125,14 +161,47 @@ async def export_backup():
         goals = await GoalRepository(session).list()
 
     data = {
-        "accounts": [{"id": a.id, "name": a.name, "type": a.type, "currency": a.currency, "initial_balance": a.initial_balance} for a in accounts],
-        "categories": [{"id": c.id, "name": c.name, "type": c.type, "color": c.color, "keywords": c.keywords} for c in categories],
-        "transactions": [{"id": t.id, "date": str(t.date), "description": t.description, "amount": t.amount, "currency": t.currency, "account_id": t.account_id, "category_id": t.category_id, "is_reconciled": t.is_reconciled} for t in transactions],
-        "goals": [{"id": g.id, "name": g.name, "target_amount": g.target_amount, "current_amount": g.current_amount, "currency": g.currency} for g in goals],
+        "accounts": [
+            {
+                "id": a.id,
+                "name": a.name,
+                "type": a.type,
+                "currency": a.currency,
+                "initial_balance": a.initial_balance,
+            }
+            for a in accounts
+        ],
+        "categories": [
+            {"id": c.id, "name": c.name, "type": c.type, "color": c.color, "keywords": c.keywords}
+            for c in categories
+        ],
+        "transactions": [
+            {
+                "id": t.id,
+                "date": str(t.date),
+                "description": t.description,
+                "amount": t.amount,
+                "currency": t.currency,
+                "account_id": t.account_id,
+                "category_id": t.category_id,
+                "is_reconciled": t.is_reconciled,
+            }
+            for t in transactions
+        ],
+        "goals": [
+            {
+                "id": g.id,
+                "name": g.name,
+                "target_amount": g.target_amount,
+                "current_amount": g.current_amount,
+                "currency": g.currency,
+            }
+            for g in goals
+        ],
     }
     return JSONResponse(
         content=json.loads(json.dumps(data, cls=DecimalEncoder)),
-        headers={"Content-Disposition": "attachment; filename=backup.json"}
+        headers={"Content-Disposition": "attachment; filename=backup.json"},
     )
 
 
@@ -158,7 +227,12 @@ async def import_backup(file: UploadFile = File(...)):
         # Restore categories first (needed for FK)
         cat_map = {}
         for c in data.get("categories", []):
-            cat = Category(name=c["name"], type=c.get("type", "expense"), color=c.get("color"), keywords=c.get("keywords", ""))
+            cat = Category(
+                name=c["name"],
+                type=c.get("type", "expense"),
+                color=c.get("color"),
+                keywords=c.get("keywords", ""),
+            )
             session.add(cat)
             await session.flush()
             cat_map[c["id"]] = cat.id
@@ -166,7 +240,12 @@ async def import_backup(file: UploadFile = File(...)):
         # Restore accounts
         acc_map = {}
         for a in data.get("accounts", []):
-            acc = Account(name=a["name"], type=a.get("type", "checking"), currency=a.get("currency", "IDR"), initial_balance=Decimal(str(a.get("initial_balance", 0))))
+            acc = Account(
+                name=a["name"],
+                type=a.get("type", "checking"),
+                currency=a.get("currency", "IDR"),
+                initial_balance=Decimal(str(a.get("initial_balance", 0))),
+            )
             session.add(acc)
             await session.flush()
             acc_map[a["id"]] = acc.id
@@ -198,7 +277,12 @@ async def import_backup(file: UploadFile = File(...)):
 
         await session.commit()
 
-    return {"message": "Restore complete", "accounts": len(acc_map), "categories": len(cat_map), "transactions": len(data.get("transactions", []))}
+    return {
+        "message": "Restore complete",
+        "accounts": len(acc_map),
+        "categories": len(cat_map),
+        "transactions": len(data.get("transactions", [])),
+    }
 
 
 @router.post("/backup/trigger")

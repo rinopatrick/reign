@@ -31,8 +31,8 @@ async def lifespan(_app: FastAPI):
     async with AsyncSessionLocal() as session:
         await seed_categories(session)
         await seed_demo_account(session)
-    # Start background backup scheduler
-    asyncio.create_task(backup_scheduler())
+    # Keep a reference so the scheduler is not GC'd (RUF006).
+    _app.state.backup_task = asyncio.create_task(backup_scheduler())
     yield
 
 

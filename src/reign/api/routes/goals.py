@@ -1,4 +1,5 @@
 """Goal API routes."""
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,18 +19,14 @@ async def list_goals(session: AsyncSession = Depends(get_session)):
 
 
 @router.post("", response_model=GoalOut, status_code=201)
-async def create_goal(
-    data: GoalCreate, session: AsyncSession = Depends(get_session)
-):
+async def create_goal(data: GoalCreate, session: AsyncSession = Depends(get_session)):
     repo = GoalRepository(session)
     goal = Goal(**data.model_dump())
     return await repo.create(goal)
 
 
 @router.delete("/{goal_id}")
-async def delete_goal(
-    goal_id: int, session: AsyncSession = Depends(get_session)
-):
+async def delete_goal(goal_id: int, session: AsyncSession = Depends(get_session)):
     repo = GoalRepository(session)
     try:
         await repo.delete(goal_id)
