@@ -182,9 +182,18 @@ class TransactionRepository:
         self._session.add(from_tx)
         self._session.add(to_tx)
         await self._session.commit()
-        await self._session.refresh(from_tx)
-        await self._session.refresh(to_tx)
-        return from_tx, to_tx
+        from_id, to_id = from_tx.id, to_tx.id
+        stmt = (
+            select(Transaction)
+            .options(
+                selectinload(Transaction.category),
+                selectinload(Transaction.splits).selectinload(TransactionSplit.category),
+            )
+            .where(Transaction.id.in_([from_id, to_id]))
+        )
+        result = await self._session.execute(stmt)
+        rows = {t.id: t for t in result.scalars().all()}
+        return rows[from_id], rows[to_id]
 
     async def create_many(self, transactions: Sequence[Transaction]) -> None:
         self._session.add_all(transactions)

@@ -39,7 +39,7 @@ def _parse_bca(rows: list[dict]) -> list[dict]:
 
 
 def _detect_mandiri(header: list[str]) -> bool:
-    return any("Tanggal Transaksi" in h or "Description" in h for h in header)
+    return "Tanggal Transaksi" in header or ("Debit" in header and "Credit" in header)
 
 
 def _parse_mandiri(rows: list[dict]) -> list[dict]:
@@ -72,7 +72,7 @@ def _parse_mandiri(rows: list[dict]) -> list[dict]:
 
 
 def _detect_jenius(header: list[str]) -> bool:
-    return any("Date" in h and "Description" in h and "Amount" in h for h in header)
+    return "Date" in header and "Description" in header and "Amount" in header
 
 
 def _parse_jenius(rows: list[dict]) -> list[dict]:
