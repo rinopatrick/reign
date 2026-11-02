@@ -4,7 +4,7 @@
 
 **Local-first personal finance tracker.** No cloud, no subscriptions, no data leaks. Your money, your machine, your rules.
 
-![Version](https://img.shields.io/badge/version-0.4.0-blue)
+![Version](https://img.shields.io/badge/version-0.5.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Stack](https://img.shields.io/badge/stack-FastAPI%20%2B%20Vanilla%20JS-orange)
 
