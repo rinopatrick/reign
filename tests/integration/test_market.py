@@ -121,3 +121,36 @@ async def test_refresh_unavailable_502(client, monkeypatch):
     hid = r.json()["id"]
     r = await client.post(f"/api/holdings/{hid}/refresh")
     assert r.status_code == 502
+
+
+@pytest.mark.asyncio
+async def test_history_recorded_on_refresh(client, monkeypatch):
+    prices = iter([Decimal("10000"), Decimal("10100")])
+
+    async def fake_seq(_symbol):
+        return next(prices)
+
+    monkeypatch.setattr(holdings_route, "fetch_price", fake_seq)
+
+    r = await client.get("/api/accounts")
+    acc = r.json()[0]
+    r = await client.post(
+        "/api/holdings",
+        json={
+            "symbol": "BBCA",
+            "units": 10,
+            "cost_basis": 9000,
+            "current_price": 9000,
+            "currency": "IDR",
+            "account_id": acc["id"],
+        },
+    )
+    hid = r.json()["id"]
+    await client.post(f"/api/holdings/{hid}/refresh")
+    await client.post(f"/api/holdings/{hid}/refresh")
+    r = await client.get(f"/api/holdings/{hid}/history?limit=10")
+    assert r.status_code == 200
+    pts = r.json()["points"]
+    assert [p["price"] for p in pts] == [10000.0, 10100.0]
+    r = await client.get("/api/holdings/999999/history")
+    assert r.status_code == 404

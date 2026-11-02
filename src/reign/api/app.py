@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from reign.adapters.database import AsyncSessionLocal, init_db
 from reign.api.errors import register_handlers
 from reign.api.routes.accounts import router as accounts_router
-from reign.api.routes.backup import backup_scheduler, router as backup_router
+from reign.api.routes.backup import backup_scheduler, market_scheduler, router as backup_router
 from reign.api.routes.budgets import router as budgets_router
 from reign.api.routes.categories import router as categories_router
 from reign.api.routes.dashboard import router as dashboard_router
@@ -38,6 +38,7 @@ async def lifespan(_app: FastAPI):
         await seed_demo_account(session)
     # Keep a reference so the scheduler is not GC'd (RUF006).
     _app.state.backup_task = asyncio.create_task(backup_scheduler())
+    _app.state.market_task = asyncio.create_task(market_scheduler())
     yield
 
 

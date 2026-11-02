@@ -1111,15 +1111,16 @@ async function renderInvest(container) {
     <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 shadow-sm overflow-x-auto">
       <table class="w-full text-sm text-left">
         <thead class="bg-gray-50 dark:bg-gray-700 text-xs uppercase text-gray-500 dark:text-gray-400">
-          <tr><th class="px-4 py-3">Symbol</th><th class="px-4 py-3 text-right">Units</th><th class="px-4 py-3 text-right">Avg Cost</th><th class="px-4 py-3 text-right">Price</th><th class="px-4 py-3 text-right">Value</th><th class="px-4 py-3 text-right">P/L</th><th class="px-4 py-3"></th></tr>
+          <tr><th class="px-4 py-3">Symbol</th><th class="px-4 py-3 text-right">Units</th><th class="px-4 py-3 text-right">Avg Cost</th><th class="px-4 py-3 text-right">Price</th><th class="px-4 py-3">Trend</th><th class="px-4 py-3 text-right">Value</th><th class="px-4 py-3 text-right">P/L</th><th class="px-4 py-3"></th></tr>
         </thead>
         <tbody>
-          ${holdings.length === 0 ? '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">No holdings yet.</td></tr>' : holdings.map(h => `
+          ${holdings.length === 0 ? '<tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">No holdings yet.</td></tr>' : holdings.map(h => `
             <tr class="border-b dark:border-gray-700">
               <td class="px-4 py-3 font-medium dark:text-gray-200">${escapeHtml(h.symbol)}</td>
               <td class="px-4 py-3 text-right dark:text-gray-300">${h.units}</td>
               <td class="px-4 py-3 text-right dark:text-gray-300">${formatMoney(h.cost_basis, h.currency)}</td>
               <td class="px-4 py-3 text-right dark:text-gray-300">${formatMoney(h.current_price, h.currency)}</td>
+              <td class="px-4 py-3"><canvas class="sparkline" data-holding="${h.id}" width="100" height="28"></canvas></td>
               <td class="px-4 py-3 text-right font-medium dark:text-gray-200">${formatMoney(h.value, h.currency)}</td>
               <td class="px-4 py-3 text-right font-medium ${Number(h.pnl) >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${formatMoney(h.pnl, h.currency)}</td>
               <td class="px-4 py-3 text-right flex items-center justify-end gap-2">
@@ -1131,6 +1132,7 @@ async function renderInvest(container) {
       </table>
     </div>
   `;
+  loadSparklines();
 }
 
 async function createHolding(e) {
@@ -1162,6 +1164,35 @@ async function refreshHolding(id) {
 async function refreshAllPrices() {
   await apiPost('/api/holdings/refresh-all', {});
   renderView('invest');
+}
+
+function drawSparkline(canvas, prices) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, hgt = canvas.height;
+  ctx.clearRect(0, 0, w, hgt);
+  if (!prices || prices.length < 2) return;
+  const min = Math.min(...prices), max = Math.max(...prices);
+  const span = max - min || 1;
+  const up = prices[prices.length - 1] >= prices[0];
+  ctx.strokeStyle = up ? '#10b981' : '#f43f5e';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  prices.forEach((p, i) => {
+    const x = (i / (prices.length - 1)) * (w - 4) + 2;
+    const y = hgt - 3 - ((p - min) / span) * (hgt - 6);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+}
+
+async function loadSparklines() {
+  const els = document.querySelectorAll('canvas.sparkline[data-holding]');
+  await Promise.all(Array.from(els).map(async (el) => {
+    try {
+      const data = await apiGet(`/api/holdings/${el.dataset.holding}/history?limit=30`);
+      drawSparkline(el, (data.points || []).map(p => Number(p.price)));
+    } catch { /* offline: leave blank */ }
+  }));
 }
 
 // ============== FORECAST ==============
