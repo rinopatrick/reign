@@ -70,6 +70,8 @@ STRINGS = {
         "allocation": "Alokasi (berdasar nilai)",
         "no_holdings": "Belum ada holdings.",
         "footer": "Reign — Keuangan lokal-pertama",
+        "from": "Dari",
+        "to": "Ke",
         "monthly_title": "Laporan Bulanan",
         "income": "Pemasukan",
         "expense": "Pengeluaran",
@@ -91,6 +93,8 @@ STRINGS = {
         "allocation": "Allocation (by value)",
         "no_holdings": "No holdings yet.",
         "footer": "Reign — Local-first personal finance",
+        "from": "From",
+        "to": "To",
         "monthly_title": "Monthly Report",
         "income": "Income",
         "expense": "Expense",
@@ -247,6 +251,61 @@ class HoldingRow:
     value: object = "0"
     pnl: object = "0"
     currency: str = "IDR"
+
+
+def generate_sankey_report(data: dict, lang: str = "id") -> bytes:
+    """Generate a cash-flow Sankey PDF: summary totals + flow table."""
+    t = _lang(lang)
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=2 * cm,
+        leftMargin=2 * cm,
+        topMargin=2 * cm,
+        bottomMargin=2 * cm,
+    )
+    story: list = []
+    title = ParagraphStyle(
+        "STitle", fontName="Helvetica-Bold", fontSize=22, textColor=colors.HexColor("#0D1B2A")
+    )
+    body = ParagraphStyle(
+        "SBody", fontName="Helvetica", fontSize=10, textColor=colors.HexColor("#1A1A2E"), leading=14
+    )
+    story.append(
+        Paragraph(
+            f"{t['monthly_title']} — {data.get('year')}-{int(data.get('month', 1)):02d}", title
+        )
+    )
+    story.append(
+        Paragraph(
+            f"{t['income']}: {data.get('total_in')} · {t['expense']}: {data.get('total_out')}",
+            body,
+        )
+    )
+    story.append(Spacer(1, 12))
+    rows = [[t["from"], t["to"], t["value"]]] + [
+        [str(link.get("source", "")), str(link.get("target", "")), str(link.get("value", ""))]
+        for link in data.get("links", [])
+    ]
+    tbl = Table(rows, colWidths=[6 * cm, 6 * cm, 5 * cm])
+    tbl.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0D1B2A")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 9),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E2E8F0")),
+            ]
+        )
+    )
+    story.append(tbl)
+    story.append(Spacer(1, 12))
+    story.append(Paragraph(t["footer"], body))
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.read()
 
 
 def generate_holdings_report(
