@@ -5,15 +5,17 @@ from datetime import datetime
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from reign.adapters.database import get_session
 from reign.adapters.repository import AccountRepository, TransactionRepository
+from reign.api.routes.profiles import profile_session
 from reign.api.schemas import CategoryTotal, DashboardSummary, TrendPoint
 
 router = APIRouter()
 
 
 @router.get("/summary", response_model=DashboardSummary)
-async def dashboard_summary(currency: str = "IDR", session: AsyncSession = Depends(get_session)):
+async def dashboard_summary(
+    currency: str = "IDR", session: AsyncSession = Depends(profile_session)
+):
     now = datetime.now()
     account_repo = AccountRepository(session)
     tx_repo = TransactionRepository(session)
@@ -40,7 +42,7 @@ async def category_totals(
     year: int | None = None,
     month: int | None = None,
     currency: str = "IDR",
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(profile_session),
 ):
     now = datetime.now()
     year = year or now.year
@@ -54,7 +56,7 @@ async def category_totals(
 async def monthly_trends(
     months: int = 6,
     currency: str = "IDR",
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(profile_session),
 ):
     tx_repo = TransactionRepository(session)
     rows = await tx_repo.get_monthly_trends(months, currency)

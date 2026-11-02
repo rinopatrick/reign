@@ -3,7 +3,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from reign.adapters.database import get_session
 from reign.adapters.repository import CategoryRepository
 from reign.api.routes.profiles import profile_session
 from reign.api.schemas import CategoryCreate, CategoryOut
@@ -19,7 +18,7 @@ async def list_categories(session: AsyncSession = Depends(profile_session)):
 
 
 @router.post("", response_model=CategoryOut, status_code=201)
-async def create_category(data: CategoryCreate, session: AsyncSession = Depends(get_session)):
+async def create_category(data: CategoryCreate, session: AsyncSession = Depends(profile_session)):
     repo = CategoryRepository(session)
     category = Category(**data.model_dump())
     return await repo.create(category)

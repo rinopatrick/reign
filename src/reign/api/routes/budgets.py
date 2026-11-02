@@ -5,8 +5,8 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from reign.adapters.database import get_session
 from reign.adapters.repository import BudgetRepository, CategoryRepository, TransactionRepository
+from reign.api.routes.profiles import profile_session
 from reign.api.schemas import BudgetCreate, BudgetOut
 from reign.domain.models import Budget
 from reign.exceptions import NotFoundError
@@ -15,7 +15,7 @@ router = APIRouter()
 
 
 @router.get("", response_model=list[BudgetOut])
-async def list_budgets(year: int, month: int, session: AsyncSession = Depends(get_session)):
+async def list_budgets(year: int, month: int, session: AsyncSession = Depends(profile_session)):
     repo = BudgetRepository(session)
     budgets = await repo.list(year, month)
     # Single aggregated query for all (category, currency) spent.
@@ -28,7 +28,7 @@ async def list_budgets(year: int, month: int, session: AsyncSession = Depends(ge
 
 
 @router.post("", response_model=BudgetOut, status_code=201)
-async def create_budget(data: BudgetCreate, session: AsyncSession = Depends(get_session)):
+async def create_budget(data: BudgetCreate, session: AsyncSession = Depends(profile_session)):
     try:
         await CategoryRepository(session).get(data.category_id)
     except NotFoundError as e:
