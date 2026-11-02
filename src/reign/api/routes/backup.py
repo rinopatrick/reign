@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from reign.adapters.database import (
-    AsyncSessionLocal,
+    DEFAULT_PROFILE,
     _data_root,
     get_session_factory,
     init_db,
@@ -30,6 +30,7 @@ from reign.adapters.repository import (
     TransactionRepository,
 )
 from reign.api.routes.holdings import _fire_alert_if_hit
+from reign.api.routes.profiles import _profiles_root
 from reign.config import settings
 from reign.domain.models import Budget, Holding, PricePoint, RecurringTransaction, TransactionSplit
 from reign.exceptions import ProfileError
@@ -195,28 +196,46 @@ async def do_auto_backup(profile: str = "default") -> str | None:
     return str(filepath)
 
 
+async def run_backup_cycle(slug: str) -> str | None:
+    """One scheduler pass for a profile: skip when disabled, not due, or already archived today."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    backups_dir = _backups_dir(slug)
+    if any(p.name.startswith(f"reign_auto_{today}") for p in backups_dir.glob("reign_auto_*.json")):
+        return None
+    try:
+        await init_db(slug)
+    except Exception as e:
+        logger.warning("Auto-backup skipped for profile %s: %s", slug, e)
+        return None
+    async with get_session_factory(slug)() as session:
+        enabled = (await _get_setting(session, "auto_backup_enabled", "false")).lower() == "true"
+        if not enabled:
+            return None
+        interval_days = int(await _get_setting(session, "auto_backup_interval_days", "7"))
+        last_run_str = await _get_setting(session, "auto_backup_last_run", "")
+        if last_run_str and datetime.now() - datetime.fromisoformat(last_run_str) < timedelta(
+            days=interval_days
+        ):
+            return None
+    return await do_auto_backup(slug)
+
+
 async def backup_scheduler():
-    """Background task: check every hour if backup is due."""
+    """Background task: check every hour if backup is due (all profiles)."""
     await asyncio.sleep(30)  # Let app finish startup first
     while True:
         try:
-            async with AsyncSessionLocal() as session:
-                enabled = (
-                    await _get_setting(session, "auto_backup_enabled", "false")
-                ).lower() == "true"
-                if not enabled:
-                    await asyncio.sleep(3600)
+            slugs = {DEFAULT_PROFILE}
+            with contextlib.suppress(OSError):
+                slugs |= {p.name for p in _profiles_root().iterdir() if p.is_dir()}
+            for slug in sorted(slugs):
+                try:
+                    filepath = await run_backup_cycle(slug)
+                except Exception as e:
+                    logger.warning("Auto-backup skipped for profile %s: %s", slug, e)
                     continue
-                interval_days = int(await _get_setting(session, "auto_backup_interval_days", "7"))
-                last_run_str = await _get_setting(session, "auto_backup_last_run", "")
-                if last_run_str:
-                    last_run = datetime.fromisoformat(last_run_str)
-                    if datetime.now() - last_run < timedelta(days=interval_days):
-                        await asyncio.sleep(3600)
-                        continue
-            filepath = await do_auto_backup()
-            if filepath:
-                logger.info("Auto-backup saved: %s", filepath)
+                if filepath:
+                    logger.info("Auto-backup saved: %s", filepath)
         except Exception as e:
             logger.exception("Backup error: %s", e)
         await asyncio.sleep(3600)

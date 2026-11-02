@@ -2,11 +2,15 @@
 
 import io
 import json
+from pathlib import Path
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from reign.adapters.database import get_session_factory, init_db
 from reign.api.app import app
+from reign.api.routes import backup as backup_module
+from reign.services.settings import set_setting
 
 
 @pytest.fixture
@@ -70,3 +74,22 @@ async def test_backup_history_lists_archives(client, tmp_path, monkeypatch):
     r = await client.get("/api/backup/history", headers={"X-Reign-Profile": "hist1"})
     names = [x["name"] for x in r.json()]
     assert any(n.startswith("reign_prerestore_") for n in names)
+
+
+@pytest.mark.asyncio
+async def test_run_backup_cycle_skips_when_disabled(client):
+    assert await backup_module.run_backup_cycle("cycle-disabled-1") is None
+
+
+@pytest.mark.asyncio
+async def test_run_backup_cycle_creates_then_skips_same_day(client, tmp_path, monkeypatch):
+    monkeypatch.setenv("REIGN_DATA_DIR", str(tmp_path))
+    slug = "cycle1"
+    await init_db(slug)
+    async with get_session_factory(slug)() as s:
+        await set_setting(s, "auto_backup_enabled", "true")
+        await set_setting(s, "auto_backup_interval_days", "1")
+    first = await backup_module.run_backup_cycle(slug)
+    assert first is not None
+    assert Path(first).name.startswith("reign_auto_")
+    assert await backup_module.run_backup_cycle(slug) is None
