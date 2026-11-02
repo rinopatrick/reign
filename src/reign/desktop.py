@@ -1,6 +1,7 @@
 """Desktop entry point — bundles server + browser into one experience."""
 
 import logging
+import multiprocessing
 import os
 import sys
 import time
@@ -23,6 +24,33 @@ def get_data_dir() -> Path:
     return data_dir
 
 
+def _is_port_open(host: str, port: int) -> bool:
+    import socket  # noqa: PLC0415  # lazy: startup probe only
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex((host, port)) == 0
+
+
+def resolve_port(host: str, port: int) -> int:
+    """Return a free port: requested one, or an ephemeral port if occupied."""
+    import socket  # noqa: PLC0415  # lazy: startup probe only
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        if _is_port_open(host, port):
+            s.bind((host, 0))
+            return s.getsockname()[1]
+    return port
+
+
+def wait_for_server(host: str, port: int, tries: int = 30, delay: float = 0.2) -> bool:
+    """Wait until the server accepts connections. True on success."""
+    for _ in range(tries):
+        time.sleep(delay)
+        if _is_port_open(host, port):
+            return True
+    return False
+
+
 def _run_server(host: str, port: int) -> None:
     """Server worker (runs in a child process)."""
     import uvicorn  # noqa: PLC0415  # lazy: child process only
@@ -34,6 +62,14 @@ def _run_server(host: str, port: int) -> None:
         reload=False,
         log_level="warning",
     )
+
+
+def _spawn_server(host: str, port: int):
+    """Spawn the server child process (separated for testability)."""
+    ctx = multiprocessing.get_context("spawn")
+    proc = ctx.Process(target=_run_server, args=(host, port), daemon=True)
+    proc.start()
+    return proc
 
 
 def main() -> None:
@@ -48,31 +84,17 @@ def main() -> None:
     os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{db_path}"
     os.environ["REIGN_BACKUPS_DIR"] = str(backups_dir)
 
-    import socket  # noqa: PLC0415  # lazy: startup probe only
-
     host = "127.0.0.1"
     port = 8000
 
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        if s.connect_ex((host, port)) == 0:
-            s.bind((host, 0))
-            port = s.getsockname()[1]
+    port = resolve_port(host, port)
 
     url = f"http://{host}:{port}"
 
-    import multiprocessing  # noqa: PLC0415  # lazy: spawn context only
-
-    ctx = multiprocessing.get_context("spawn")
-    proc = ctx.Process(target=_run_server, args=(host, port), daemon=True)
-    proc.start()
+    proc = _spawn_server(host, port)
 
     # Wait for server to accept connections
-    for _ in range(30):
-        time.sleep(0.2)
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            if s.connect_ex((host, port)) == 0:
-                break
-    else:
+    if not wait_for_server(host, port):
         logger.error("Server failed to start.")
         proc.terminate()
         sys.exit(1)
