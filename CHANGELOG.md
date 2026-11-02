@@ -1,5 +1,12 @@
 # Changelog — Reign
 
+## v0.9.0 — Web Push, PDF bilingual, arsip scheduler (2026-11-02)
+
+- Web Push nyata: pywebpush + VAPID env + PushSubscription per-profil + auto-kirim saat alert + toggle UI + SW push handler (PR #82, closes #79)
+- PDF bilingual: STRINGS id/en di holdings + bulanan + MonthlyParams + tombol PDF ID/EN, verifikasi teks via pypdf (PR #83, closes #80)
+- Arsip scheduler: run_backup_cycle multi-profil + skip hari-sama + SCHEMA_VERSION 7 (PR #84, closes #81)
+- Suite: 102 passed + 1 skipped, ruff bersih, JS valid, smoke browser hijau
+
 ## v0.8.0 — PDF holdings, live price test, arsip harian + fix chart (2026-11-02)
 
 - PDF holdings per-profil + ringkasan + alokasi via /reports/holdings + tombol Export PDF + HoldingRepository (PR #74, closes #71)
