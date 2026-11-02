@@ -1,5 +1,6 @@
 """Tests: profile export/import (sync/copy between profiles)."""
 
+import gzip
 import io
 import json
 from pathlib import Path
@@ -93,3 +94,29 @@ async def test_run_backup_cycle_creates_then_skips_same_day(client, tmp_path, mo
     assert first is not None
     assert Path(first).name.startswith("reign_auto_")
     assert await backup_module.run_backup_cycle(slug) is None
+
+
+@pytest.mark.asyncio
+async def test_gzip_backup_roundtrip(client, tmp_path, monkeypatch):
+    monkeypatch.setenv("REIGN_DATA_DIR", str(tmp_path))
+    slug = "gz1"
+    await init_db(slug)
+    async with get_session_factory(slug)() as s:
+        await set_setting(s, "auto_backup_enabled", "true")
+        await set_setting(s, "auto_backup_interval_days", "1")
+        await set_setting(s, "auto_backup_compress", "true")
+    first = await backup_module.run_backup_cycle(slug)
+    assert first is not None and first.endswith(".json.gz")
+    headers = {"X-Reign-Profile": slug}
+    r = await client.get("/api/backup/history", headers=headers)
+    names = [x["name"] for x in r.json()]
+    assert any(n.endswith(".json.gz") for n in names)
+    raw = Path(first).read_bytes()
+    assert gzip.decompress(raw).startswith(b"{")
+    r = await client.post(
+        "/api/restore",
+        headers=headers,
+        files={"file": ("b.json.gz", io.BytesIO(raw), "application/gzip")},
+    )
+    assert r.status_code == 200
+    assert r.json()["message"] == "Restore complete"
