@@ -225,3 +225,16 @@ async def test_notify_webhook_success(monkeypatch):
 
     monkeypatch.setattr(urllib.request, "urlopen", lambda _req, **_kw: FakeResp())
     assert notify_module.notify_webhook("t", "b") is True
+
+
+@pytest.mark.asyncio
+async def test_fetch_price_live_or_skip():
+    """Live Yahoo Finance check; skipped gracefully when offline/blocked."""
+    pytest.importorskip("httpx")
+    try:
+        price = await market_module.fetch_price("BBCA")
+    except Exception:
+        pytest.skip("network unavailable for live price check")
+    if price is None:
+        pytest.skip("Yahoo Finance blocked or symbol unknown")
+    assert price > 0
