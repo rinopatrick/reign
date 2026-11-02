@@ -1074,7 +1074,7 @@ async function deleteGoal(id) {
 
 // ============== INVESTMENTS ==============
 async function renderInvest(container) {
-  const [holdings, accounts, alerts] = await Promise.all([apiGet('/api/holdings'), apiGet('/api/accounts'), apiGet('/api/holdings/alerts/list?unread_only=true').catch(() => [])]);
+  const [holdings, accounts, alerts, alloc] = await Promise.all([apiGet('/api/holdings'), apiGet('/api/accounts'), apiGet('/api/holdings/alerts/list?unread_only=true').catch(() => []), apiGet('/api/holdings/allocation').catch(() => ({total: 0, slices: []}))]);
   const total = holdings.reduce((a, h) => a + Number(h.value), 0);
   const pnl = holdings.reduce((a, h) => a + Number(h.pnl), 0);
   container.innerHTML = `
@@ -1085,11 +1085,13 @@ async function renderInvest(container) {
       </div>
       ${alerts.slice(0, 5).map(a => `<div class="text-amber-700 dark:text-amber-400">${escapeHtml(a.symbol)} ${a.direction === 'above' ? '>=' : '<='} ${escapeHtml(String(a.target))} <button class="underline" onclick="markAlertRead(${a.id})">OK</button></div>`).join('')}
     </div>` : ''}
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
       <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4 shadow-sm">
         <p class="text-xs text-gray-500 uppercase">Portfolio Value</p>
         <p class="text-2xl font-bold dark:text-gray-100">${formatMoney(total)}</p>
+        <div class="mt-2 h-[180px]"><canvas id="allocChart"></canvas></div>
       </div>
+      <div class="grid grid-cols-1 gap-4 md:col-span-3">
       <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4 shadow-sm">
         <p class="text-xs text-gray-500 uppercase">Unrealized P/L</p>
         <p class="text-2xl font-bold ${pnl >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${pnl >= 0 ? '+' : ''}${formatMoney(pnl)}</p>
@@ -1097,6 +1099,7 @@ async function renderInvest(container) {
       <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4 shadow-sm">
         <p class="text-xs text-gray-500 uppercase">Holdings</p>
         <p class="text-2xl font-bold dark:text-gray-100">${holdings.length}</p>
+      </div>
       </div>
     </div>
     <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 shadow-sm p-4 mb-4">
