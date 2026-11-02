@@ -7,8 +7,8 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from reign.adapters.database import get_session
 from reign.adapters.repository import TransactionRepository
+from reign.api.routes.profiles import profile_session
 from reign.services.pdf_generator import generate_monthly_report
 
 router = APIRouter()
@@ -19,7 +19,7 @@ async def monthly_report(
     year: int | None = None,
     month: int | None = None,
     currency: str = "IDR",
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(profile_session),
 ):
     now = datetime.now()
     year = year or now.year
