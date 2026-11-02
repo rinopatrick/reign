@@ -112,3 +112,15 @@ async def test_categorizer_skips_categorized():
     async with AsyncSessionLocal() as s:
         await categorize_transactions(s, [tx])
     assert tx.category_id == 5
+
+
+@pytest.mark.asyncio
+async def test_reports_pdf_has_profile_header(client):
+    now = datetime.now()
+    r = await client.get(
+        f"/api/reports/monthly?year={now.year}&month={now.month}&currency=IDR",
+        headers={"X-Reign-Profile": "kantor"},
+    )
+    assert r.status_code == 200
+    assert r.headers["content-disposition"].startswith("attachment; filename=report_kantor_")
+    assert r.content[:5] == b"%PDF-"

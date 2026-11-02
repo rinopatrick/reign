@@ -6,7 +6,7 @@ import pytest
 from fastapi import HTTPException
 
 from reign.domain.period import Period
-from reign.services.pdf_generator import generate_monthly_report
+from reign.services.pdf_generator import MonthlyReportInput, generate_monthly_report
 from reign.services.uploads import read_limited_upload
 
 
@@ -35,23 +35,18 @@ async def test_read_limited_upload_413():
 
 def test_generate_monthly_report_pdf_bytes():
     pdf = generate_monthly_report(
-        year=2026,
-        month=11,
-        currency="IDR",
-        summary={"income": Decimal("100"), "expense": Decimal("-40"), "net": Decimal("60")},
-        category_totals=[("Food", Decimal("-40"))],
+        MonthlyReportInput(
+            year=2026,
+            month=11,
+            summary={"income": Decimal("100"), "expense": Decimal("-40"), "net": Decimal("60")},
+            category_totals=[("Food", Decimal("-40"))],
+        )
     )
     assert pdf[:5] == b"%PDF-"
 
 
 def test_generate_monthly_report_empty_categories():
-    pdf = generate_monthly_report(
-        year=2026,
-        month=1,
-        currency="USD",
-        summary={"income": Decimal("0"), "expense": Decimal("0"), "net": Decimal("0")},
-        category_totals=[],
-    )
+    pdf = generate_monthly_report(MonthlyReportInput(year=2026, month=1, currency="USD"))
     assert pdf[:5] == b"%PDF-"
 
 

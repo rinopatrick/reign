@@ -1,6 +1,7 @@
 """PDF report generator using ReportLab."""
 
-from datetime import datetime
+import dataclasses
+import datetime as dt
 from decimal import Decimal
 from io import BytesIO
 
@@ -23,14 +24,37 @@ def _fmt_money(value: Decimal, currency: str = "IDR") -> str:
     return f"{currency} {value:,.2f}"
 
 
-def generate_monthly_report(
-    year: int,
-    month: int,
-    currency: str,
-    summary: dict[str, Decimal],
-    category_totals: list[tuple[str, Decimal]],
-) -> bytes:
+@dataclasses.dataclass
+class MonthlyReportInput:
+    """Bundled PDF inputs (keeps the generator signature small)."""
+
+    year: int
+    month: int
+    currency: str = "IDR"
+    summary: dict | None = None
+    category_totals: list | None = None
+    profile: str = "default"
+
+    def resolved(self) -> tuple:
+        summary = {
+            "income": Decimal("0"),
+            "expense": Decimal("0"),
+            "net": Decimal("0"),
+            **(self.summary or {}),
+        }
+        return (
+            self.year,
+            self.month,
+            self.currency,
+            summary,
+            self.category_totals or [],
+            self.profile,
+        )
+
+
+def generate_monthly_report(report: MonthlyReportInput) -> bytes:
     """Generate a monthly finance report PDF."""
+    year, month, currency, summary, category_totals, profile = report.resolved()
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -85,7 +109,10 @@ def generate_monthly_report(
     # Header
     story.append(Paragraph(f"Monthly Report — {year}-{month:02d}", styles["title"]))
     story.append(
-        Paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", styles["subtitle"])
+        Paragraph(
+            f"Profile: {profile} · Generated: {dt.datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            styles["subtitle"],
+        )
     )
 
     # Summary metrics table
