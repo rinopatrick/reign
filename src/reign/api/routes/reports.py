@@ -1,6 +1,7 @@
 """Report generation routes."""
 
 from datetime import datetime
+from decimal import Decimal
 from io import BytesIO
 
 from fastapi import APIRouter, Depends, Request
@@ -8,9 +9,13 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from reign.adapters.database import validate_slug
-from reign.adapters.repository import TransactionRepository
+from reign.adapters.repository import HoldingRepository, TransactionRepository
 from reign.api.routes.profiles import profile_session
-from reign.services.pdf_generator import MonthlyReportInput, generate_monthly_report
+from reign.services.pdf_generator import (
+    MonthlyReportInput,
+    generate_holdings_report,
+    generate_monthly_report,
+)
 
 router = APIRouter()
 
@@ -44,6 +49,32 @@ async def monthly_report(
     )
 
     filename = f"report_{profile}_{year}{month:02d}_{currency}.pdf"
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/holdings")
+async def holdings_report(request: Request, session: AsyncSession = Depends(profile_session)):
+    """Holdings portfolio PDF for the active profile."""
+    profile = validate_slug(request.headers.get("x-reign-profile", "") or "default")
+    repo = HoldingRepository(session)
+    rows = await repo.list()
+    items = [
+        {
+            "symbol": h.symbol,
+            "units": str(h.units),
+            "cost_basis": str(h.cost_basis),
+            "current_price": str(h.current_price),
+            "value": str((h.units or Decimal("0")) * (h.current_price or Decimal("0"))),
+            "currency": h.currency,
+        }
+        for h in rows
+    ]
+    pdf_bytes = generate_holdings_report(items, profile=profile)
+    filename = f"holdings_{profile}.pdf"
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",

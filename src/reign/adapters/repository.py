@@ -16,6 +16,7 @@ from reign.domain.models import (
     Budget,
     Category,
     Goal,
+    Holding,
     RecurringTransaction,
     Transaction,
     TransactionSplit,
@@ -449,3 +450,17 @@ class RecurringRepository:
             raise NotFoundError(f"Recurring {rec_id} not found")
         await self._session.delete(rec)
         await self._session.commit()
+
+
+class HoldingRepository:
+    """Repository for Holding entity."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def list(self, *, account_id: int | None = None) -> Sequence[Holding]:
+        stmt = select(Holding).options(selectinload(Holding.account)).order_by(Holding.symbol)
+        if account_id is not None:
+            stmt = stmt.where(Holding.account_id == account_id)
+        result = await self._session.execute(stmt)
+        return result.scalars().all()

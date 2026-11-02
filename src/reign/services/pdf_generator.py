@@ -184,3 +184,112 @@ def generate_monthly_report(report: MonthlyReportInput) -> bytes:
     doc.build(story)
     buffer.seek(0)
     return buffer.read()
+
+
+@dataclasses.dataclass
+class HoldingRow:
+    symbol: str
+    units: str = "0"
+    cost_basis: object = "0"
+    current_price: object = "0"
+    value: object = "0"
+    pnl: object = "0"
+    currency: str = "IDR"
+
+
+def generate_holdings_report(
+    holdings: list,
+    profile: str = "default",
+    currency: str = "IDR",
+) -> bytes:
+    """Generate a holdings portfolio PDF (summary + allocation + table)."""
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=2 * cm,
+        leftMargin=2 * cm,
+        topMargin=2 * cm,
+        bottomMargin=2 * cm,
+    )
+    story: list = []
+    title = ParagraphStyle(
+        "HTitle",
+        fontName="Helvetica-Bold",
+        fontSize=22,
+        textColor=colors.HexColor("#0D1B2A"),
+        spaceAfter=6,
+    )
+    subtitle = ParagraphStyle(
+        "HSub",
+        fontName="Helvetica",
+        fontSize=10,
+        textColor=colors.HexColor("#718096"),
+        spaceAfter=18,
+    )
+    heading = ParagraphStyle(
+        "HHead",
+        fontName="Helvetica-Bold",
+        fontSize=12,
+        textColor=colors.HexColor("#1B4965"),
+        spaceAfter=6,
+    )
+    body = ParagraphStyle(
+        "HBody", fontName="Helvetica", fontSize=9, textColor=colors.HexColor("#1A1A2E"), leading=14
+    )
+    story.append(Paragraph("Holdings Portfolio", title))
+    story.append(
+        Paragraph(
+            f"Profile: {profile} · Generated: {dt.datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            subtitle,
+        )
+    )
+    total = sum((Decimal(str(h.get("value", 0))) for h in holdings), Decimal("0"))
+    story.append(Paragraph("Summary", heading))
+    story.append(
+        Paragraph(
+            f"Total value: {currency} {total:,.2f} across {len(holdings)} holding(s).",
+            body,
+        )
+    )
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Holdings", heading))
+    if holdings:
+
+        def _row(h):
+            return [
+                str(h.get("symbol", "")),
+                str(h.get("units", "")),
+                _fmt_money(Decimal(str(h.get("cost_basis", 0) or 0)), currency),
+                _fmt_money(Decimal(str(h.get("current_price", 0) or 0)), currency),
+                _fmt_money(Decimal(str(h.get("value", 0) or 0)), currency),
+            ]
+
+        rows = [["Symbol", "Units", "Avg Cost", "Price", "Value"]] + [_row(h) for h in holdings]
+        t = Table(rows, colWidths=[5 * cm, 3 * cm, 3 * cm, 3 * cm, 4 * cm])
+        t.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0D1B2A")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, 0), 9),
+                    ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E2E8F0")),
+                ]
+            )
+        )
+        story.append(t)
+        story.append(Spacer(1, 12))
+        story.append(Paragraph("Allocation (by value)", heading))
+        for h in holdings:
+            v = Decimal(str(h.get("value", 0) or 0))
+            pct = (v / total * 100) if total else Decimal("0")
+            story.append(Paragraph(f"{h.get('symbol', '')}: {pct:.1f}%", body))
+    else:
+        story.append(Paragraph("No holdings yet.", body))
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Reign — Local-first personal finance", subtitle))
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.read()
