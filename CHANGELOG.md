@@ -1,5 +1,12 @@
 # Changelog — Reign
 
+## v0.10.0 — VAPID generator, badge PWA, arsip gzip (2026-11-02)
+
+- VAPID generator di Settings: sekali tampil + env hint + roundtrip sign verify (PR #89, closes #86)
+- Badge unread push di PWA: setAppBadge + fallback title (N) + unread-count flow (PR #90, closes #87)
+- Arsip gzip: auto_backup_compress default true + restore .gz + history campur + toggle UI (PR #91, closes #88)
+- Suite: 105 passed + 1 skipped, ruff bersih, JS valid, smoke browser hijau
+
 ## v0.9.0 — Web Push, PDF bilingual, arsip scheduler (2026-11-02)
 
 - Web Push nyata: pywebpush + VAPID env + PushSubscription per-profil + auto-kirim saat alert + toggle UI + SW push handler (PR #82, closes #79)
