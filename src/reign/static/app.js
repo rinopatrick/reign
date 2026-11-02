@@ -193,6 +193,11 @@ async function renderDashboard(container) {
         </div>
       </div>
     </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-5 shadow-sm mb-6">
+      <h3 class="text-sm font-semibold mb-1 dark:text-gray-200">Arus Kas (Sankey)</h3>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Pemasukan bulan berjalan ke kategori pengeluaran dan sisa.</p>
+      <div id="sankey" class="overflow-x-auto"></div>
+    </div>
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
       <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-5 shadow-sm">
         <h3 class="text-sm font-semibold mb-4 dark:text-gray-200">Recent Transactions</h3>
@@ -278,6 +283,8 @@ async function renderDashboard(container) {
   } else {
     document.getElementById('cat-chart-wrapper').innerHTML = '<p class="text-sm text-gray-400 text-center">No spending yet this month.<br>Add expenses to see the breakdown.</p>';
   }
+
+  await renderSankey();
 
   const txContainer = document.getElementById('recent-tx');
   if (txs.length === 0) {
@@ -1268,6 +1275,43 @@ async function markAllAlertsRead() {
 }
 
 const ALLOC_COLORS = ['#2563eb','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#14b8a6'];
+
+async function renderSankey() {
+  const el = document.getElementById('sankey');
+  if (!el) return;
+  try {
+    const now = new Date();
+    const d = await apiGet(`/api/reports/sankey?year=${now.getFullYear()}&month=${now.getMonth()+1}`);
+    if (!d.links.length) {
+      el.innerHTML = '<p class="text-sm text-gray-400">Belum ada arus kas bulan ini.</p>';
+      return;
+    }
+    const outs = d.links.filter(l => l.target.startsWith('out:'));
+    const saved = d.links.find(l => l.target === 'saved');
+    const total = Math.max(Number(d.total_in), 0.0001);
+    const H = 26;
+    const row = (label, val, color, wPct) => `
+      <div class="flex items-center gap-2 mb-1.5">
+        <span class="text-xs text-gray-500 dark:text-gray-400 w-32 truncate" title="${escapeHtml(label)}">${escapeHtml(label)}</span>
+        <div class="flex-1 h-[${H}px] bg-gray-100 dark:bg-gray-700 rounded overflow-hidden">
+          <div class="h-full rounded" style="width:${wPct}%;background:${color}"></div>
+        </div>
+        <span class="text-xs font-medium dark:text-gray-200 w-24 text-right tabular-nums">${formatMoney(val)}</span>
+      </div>`;
+    el.innerHTML = `
+      <div class="min-w-[320px]">
+        <p class="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mb-2">Pemasukan ${formatMoney(d.total_in)}</p>
+        ${outs.map(l => {
+          const name = l.target.slice(4);
+          const pct = Math.max((Number(l.value) / total) * 100, 1.5);
+          return row(name, l.value, '#f43f5e', pct.toFixed(1));
+        }).join('')}
+        ${saved ? row('Sisa', saved.value, '#10b981', Math.max((Number(saved.value) / total) * 100, 1.5).toFixed(1)) : ''}
+      </div>`;
+  } catch {
+    el.innerHTML = '<p class="text-sm text-gray-400">Sankey gagal dimuat.</p>';
+  }
+}
 
 function drawAllocChart(alloc) {
   const el = document.getElementById('allocChart');
