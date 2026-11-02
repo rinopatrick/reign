@@ -1,10 +1,12 @@
 """Domain: net-worth, calendar months, recurring forecast, 1-query budgets."""
 
+import io
 from datetime import datetime
 from decimal import Decimal
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from pypdf import PdfReader
 
 from reign.api.app import app
 
@@ -123,3 +125,12 @@ async def test_sankey_consistent_with_summary(client):
     for link in data["links"]:
         assert link["source"] in node_ids
         assert link["target"] in node_ids
+
+
+@pytest.mark.asyncio
+async def test_sankey_pdf_readable(client):
+    r = await client.get("/api/reports/sankey/pdf")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("application/pdf")
+    text = PdfReader(io.BytesIO(r.content)).pages[0].extract_text()
+    assert "Pemasukan" in text

@@ -194,7 +194,10 @@ async function renderDashboard(container) {
       </div>
     </div>
     <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-5 shadow-sm mb-6">
-      <h3 class="text-sm font-semibold mb-1 dark:text-gray-200">Arus Kas (Sankey)</h3>
+      <div class="flex items-center justify-between mb-1 flex-wrap gap-2">
+        <h3 class="text-sm font-semibold dark:text-gray-200">Arus Kas (Sankey)</h3>
+        <button onclick="downloadSankeyPdf()" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">Export PDF</button>
+      </div>
       <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Pemasukan bulan berjalan ke kategori pengeluaran dan sisa.</p>
       <div id="sankey" class="overflow-x-auto"></div>
     </div>
@@ -1275,6 +1278,17 @@ async function markAllAlertsRead() {
 }
 
 const ALLOC_COLORS = ['#2563eb','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#14b8a6'];
+
+async function downloadSankeyPdf() {
+  const now = new Date();
+  const r = await apiFetch(`/api/reports/sankey/pdf?year=${now.getFullYear()}&month=${now.getMonth()+1}`);
+  if (!r.ok) { alert('Export Sankey gagal, coba lagi.'); return; }
+  const blob = await r.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'sankey.pdf';
+  a.click();
+}
 
 async function renderSankey() {
   const el = document.getElementById('sankey');

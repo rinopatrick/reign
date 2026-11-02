@@ -16,6 +16,7 @@ from reign.services.pdf_generator import (
     MonthlyReportInput,
     generate_holdings_report,
     generate_monthly_report,
+    generate_sankey_report,
 )
 
 router = APIRouter()
@@ -109,6 +110,25 @@ async def sankey(
         "nodes": nodes,
         "links": links,
     }
+
+
+@router.get("/sankey/pdf")
+async def sankey_pdf(
+    year: int | None = None,
+    month: int | None = None,
+    currency: str = "IDR",
+    lang: str = "id",
+    session: AsyncSession = Depends(profile_session),
+):
+    """Sankey cash-flow PDF for the active month."""
+    data = await sankey(year=year, month=month, currency=currency, session=session)
+    pdf_bytes = generate_sankey_report(data, lang=lang if lang in ("id", "en") else "id")
+    filename = f"sankey_{data['year']}{int(data['month']):02d}_{lang}.pdf"
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 @router.get("/holdings")
