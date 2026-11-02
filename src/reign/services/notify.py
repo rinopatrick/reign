@@ -16,8 +16,10 @@ import logging
 import smtplib
 import urllib.parse
 import urllib.request
+from base64 import urlsafe_b64encode
 from email.message import EmailMessage
 
+from cryptography.hazmat.primitives.asymmetric import ec
 from sqlalchemy import select
 
 from reign.config import settings
@@ -117,6 +119,21 @@ def vapid_configured() -> bool:
     return bool(
         getattr(settings, "vapid_private_key", "") and getattr(settings, "vapid_public_key", "")
     )
+
+
+def generate_vapid_keys() -> tuple[str, str]:
+    """Generate a VAPID ES256 keypair, base64url raw (public 65B, private 32B)."""
+    private_key = ec.generate_private_key(ec.SECP256R1())
+    public_numbers = private_key.public_key().public_numbers()
+    x = public_numbers.x.to_bytes(32, "big")
+    y = public_numbers.y.to_bytes(32, "big")
+    priv = private_key.private_numbers().private_value.to_bytes(32, "big")
+    return _b64raw(b"\x04" + x + y), _b64raw(priv)
+
+
+def _b64raw(raw: bytes) -> str:
+    """base64url without padding (Web Push key format)."""
+    return urlsafe_b64encode(raw).decode().rstrip("=")
 
 
 def send_webpush(endpoint: str, p256dh: str, auth: str, title: str, body: str) -> bool:
