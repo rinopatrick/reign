@@ -316,6 +316,19 @@ async def trigger_backup(request: Request):
     return {"message": "Backup skipped — auto-backup is disabled"}
 
 
+@router.get("/backup/history")
+async def backup_history(request: Request, limit: int = 20):
+    """List backup archives for the active profile (newest first)."""
+    backups_dir = _backups_dir(_req_profile(request))
+    files = sorted(
+        list(backups_dir.glob("reign_auto_*.json"))
+        + list(backups_dir.glob("reign_prerestore_*.json")),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )[: max(1, min(limit, 100))]
+    return [{"name": f.name, "size": f.stat().st_size, "mtime": f.stat().st_mtime} for f in files]
+
+
 class ProfileTransferIn(BaseModel):
     slug: str
 

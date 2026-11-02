@@ -1,5 +1,8 @@
 """Tests: profile export/import (sync/copy between profiles)."""
 
+import io
+import json
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -47,3 +50,23 @@ async def test_profile_import_rejects(client):
     assert r.status_code == 400
     r = await client.post("/api/profiles/import", json={"slug": "default"})
     assert r.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_backup_history_lists_archives(client, tmp_path, monkeypatch):
+    monkeypatch.setenv("REIGN_DATA_DIR", str(tmp_path))
+    r = await client.get("/api/backup/history", headers={"X-Reign-Profile": "hist1"})
+    assert r.status_code == 200
+    assert r.json() == []
+    r = await client.post("/api/profiles", json={"slug": "hist1"})
+    assert r.status_code in (200, 201)
+    payload = json.dumps({"accounts": [], "categories": [], "transactions": []}).encode()
+    r = await client.post(
+        "/api/restore",
+        headers={"X-Reign-Profile": "hist1"},
+        files={"file": ("b.json", io.BytesIO(payload), "application/json")},
+    )
+    assert r.status_code == 200
+    r = await client.get("/api/backup/history", headers={"X-Reign-Profile": "hist1"})
+    names = [x["name"] for x in r.json()]
+    assert any(n.startswith("reign_prerestore_") for n in names)
