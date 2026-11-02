@@ -32,6 +32,7 @@ from reign.domain.models import Transaction, TransactionSplit
 from reign.exceptions import CSVParseError, NotFoundError
 from reign.services.categorizer import categorize_transactions
 from reign.services.csv_parser import parse_csv
+from reign.services.ofx_parser import parse_ofx
 from reign.services.uploads import read_limited_upload
 
 router = APIRouter()
@@ -217,19 +218,7 @@ async def import_csv(
         raise HTTPException(status_code=422, detail=str(e)) from e
 
     repo = TransactionRepository(session)
-    transactions: list[Transaction] = []
-    for item in parsed:
-        date_val = item["date"]
-        if isinstance(date_val, str):
-            date_val = date_cls.fromisoformat(date_val)
-        tx = Transaction(
-            date=date_val,
-            description=item["description"],
-            amount=item["amount"],
-            currency=item.get("currency", "IDR"),
-            account_id=account_id,
-        )
-        transactions.append(tx)
+    transactions = _build_transactions(parsed, account_id)
 
     if transactions:
         await categorize_transactions(session, transactions)
@@ -240,6 +229,70 @@ async def import_csv(
         skipped=0,
         message=f"Imported {len(transactions)} transactions from {fmt} format.",
     )
+
+
+def _build_transactions(parsed: list[dict], account_id: int) -> list[Transaction]:
+    transactions: list[Transaction] = []
+    for item in parsed:
+        date_val = item["date"]
+        if isinstance(date_val, str):
+            date_val = date_cls.fromisoformat(date_val)
+        transactions.append(
+            Transaction(
+                date=date_val,
+                description=item["description"],
+                amount=item["amount"],
+                currency=item.get("currency", "IDR"),
+                account_id=account_id,
+            )
+        )
+    return transactions
+
+
+@router.post("/import-ofx", response_model=CSVImportResponse)
+async def import_ofx(
+    account_id: int,
+    file: UploadFile = File(...),
+    session: AsyncSession = Depends(get_session),
+):
+    """Upload an OFX/QFX bank file and auto-import transactions."""
+    if not file.filename or not file.filename.lower().endswith((".ofx", ".qfx")):
+        raise HTTPException(status_code=400, detail="File must be OFX or QFX")
+    if file.size is not None and file.size > settings.max_csv_bytes:
+        raise HTTPException(status_code=413, detail="OFX too large (max 5MB)")
+    try:
+        await AccountRepository(session).get(account_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    content = await read_limited_upload(file, settings.max_csv_bytes, "OFX")
+    try:
+        fmt, parsed = parse_ofx(bytes(content))
+    except CSVParseError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    transactions = _build_transactions(parsed, account_id)
+    if transactions:
+        await categorize_transactions(session, transactions)
+        await TransactionRepository(session).create_many(transactions)
+    return CSVImportResponse(
+        imported=len(transactions),
+        skipped=0,
+        message=f"Imported {len(transactions)} transactions from {fmt} format.",
+    )
+
+
+@router.post("/import-ofx-preview")
+async def import_ofx_preview(file: UploadFile = File(...)):
+    """Preview an OFX/QFX file before importing."""
+    if not file.filename or not file.filename.lower().endswith((".ofx", ".qfx")):
+        raise HTTPException(status_code=400, detail="File must be OFX or QFX")
+    if file.size is not None and file.size > settings.max_csv_bytes:
+        raise HTTPException(status_code=413, detail="OFX too large (max 5MB)")
+    content = await read_limited_upload(file, settings.max_csv_bytes, "OFX")
+    try:
+        fmt, parsed = parse_ofx(bytes(content))
+    except CSVParseError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return {"format": fmt, "preview": parsed[:10], "total": len(parsed)}
 
 
 @router.post("/import-preview")
