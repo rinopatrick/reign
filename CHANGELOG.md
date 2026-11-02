@@ -1,5 +1,14 @@
 # Changelog — Reign
 
+## v0.7.0 — Alokasi portofolio, notifikasi alert, PDF per-profil (2026-11-02)
+
+- Donut alokasi portofolio + endpoint /holdings/allocation + tooltip bobot (PR #67, closes #64)
+- Notifikasi email + webhook saat alert fire, opt-in via env, fan-out saat refresh + scheduler (PR #68, closes #65)
+- PDF per-profil: kop profil + filename per-profil + MonthlyReportInput (PR #69, closes #66)
+- Suite: 93 passed, ruff bersih, JS valid
+
+
+
 ## v0.6.0 — Harga pasar otomatis + peringatan + sinkron profil (2026-11-02)
 
 - Harga pasar otomatis Yahoo Finance: mapping BBCA->BBCA.JK, refresh per-holding + semua, lookup (PR #56)
