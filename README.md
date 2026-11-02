@@ -225,11 +225,11 @@ reign/
 
 ## Roadmap
 
-- [ ] Bank statement import (OFX/QFX)
-- [ ] Reconciliation with bank statements
-- [ ] Multi-user support (local profiles)
+- [x] **Bank statement import (OFX/QFX)** ✓
+- [x] **Reconciliation with bank statements** ✓
+- [x] **Multi-user support (local profiles)** ✓
 - [x] **Scheduled backups** ✓
-- [ ] Mobile PWA support
+- [x] **Mobile PWA support** ✓
 - [ ] Investment/Stock tracking
 - [x] **Split transactions** ✓
 
