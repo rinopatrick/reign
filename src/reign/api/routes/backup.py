@@ -30,8 +30,9 @@ from reign.adapters.repository import (
     TransactionRepository,
 )
 from reign.config import settings
-from reign.domain.models import Budget, RecurringTransaction, TransactionSplit
+from reign.domain.models import Budget, Holding, PricePoint, RecurringTransaction, TransactionSplit
 from reign.exceptions import ProfileError
+from reign.services.market import fetch_price
 from reign.services.restore import restore_counts, run_restore, validate_backup_shape
 from reign.services.settings import get_setting as _get_setting, set_setting as _set_setting
 from reign.services.uploads import read_limited_upload
@@ -218,6 +219,29 @@ async def backup_scheduler():
         except Exception as e:
             logger.exception("Backup error: %s", e)
         await asyncio.sleep(3600)
+
+
+async def market_scheduler(interval_hours: int = 24) -> None:
+    """Background task: refresh all holdings' prices on a fixed interval."""
+    await asyncio.sleep(60)
+    while True:
+        try:
+            async with get_session_factory("default")() as session:
+                rows = (await session.execute(select(Holding))).scalars().all()
+                for h in rows:
+                    price = await fetch_price(h.symbol)
+                    if price is None:
+                        continue
+                    h.current_price = price
+                    session.add(
+                        PricePoint(holding_id=h.id, price=price, currency=h.currency or "IDR")
+                    )
+                await session.commit()
+                if rows:
+                    logger.info("Market refresh saved for %d holdings", len(rows))
+        except Exception as e:
+            logger.exception("Market refresh error: %s", e)
+        await asyncio.sleep(interval_hours * 3600)
 
 
 def _req_profile(request: Request) -> str:

@@ -171,3 +171,20 @@ class Holding(Base):
 
     account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"), nullable=False)
     account: Mapped[Account] = relationship()
+    prices: Mapped[list["PricePoint"]] = relationship(
+        back_populates="holding", cascade="all, delete-orphan", order_by="PricePoint.at"
+    )
+
+
+class PricePoint(Base):
+    """One observed market price for a holding (append-only history)."""
+
+    __tablename__ = "price_points"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    holding_id: Mapped[int] = mapped_column(ForeignKey("holdings.id"), nullable=False)
+    price: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), default="IDR")
+    at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    holding: Mapped["Holding"] = relationship(back_populates="prices")

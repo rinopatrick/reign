@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 from reign.adapters.repository import AccountRepository
 from reign.api.routes.profiles import profile_session
 from reign.domain.enums import Currency
-from reign.domain.models import Holding
+from reign.domain.models import Holding, PricePoint
 from reign.exceptions import NotFoundError
 from reign.services.market import fetch_price, resolve_yahoo_symbol
 
@@ -112,6 +112,37 @@ async def update_holding(
     return _summarize(h)
 
 
+async def _apply_price(
+    session: AsyncSession, h: Holding, price: Decimal, *, commit: bool = True
+) -> None:
+    """Set current price + append a history point (single place, used by routes)."""
+    h.current_price = price
+    session.add(PricePoint(holding_id=h.id, price=price, currency=h.currency or "IDR"))
+    if commit:
+        await session.commit()
+
+
+@router.get("/{holding_id}/history")
+async def holding_history(
+    holding_id: int, limit: int = 60, session: AsyncSession = Depends(profile_session)
+):
+    """Price history (newest last, capped)."""
+    h = await session.get(Holding, holding_id)
+    if not h:
+        raise HTTPException(status_code=404, detail=f"Holding {holding_id} not found")
+    stmt = (
+        select(PricePoint)
+        .where(PricePoint.holding_id == holding_id)
+        .order_by(PricePoint.at.desc(), PricePoint.id.desc())
+        .limit(max(1, min(limit, 365)))
+    )
+    rows = (await session.execute(stmt)).scalars().all()
+    pts = [
+        {"price": float(p.price), "at": p.at.isoformat() if p.at else None} for p in reversed(rows)
+    ]
+    return {"holding_id": holding_id, "symbol": h.symbol, "points": pts}
+
+
 @router.delete("/{holding_id}")
 async def delete_holding(holding_id: int, session: AsyncSession = Depends(profile_session)):
     h = await session.get(Holding, holding_id)
@@ -131,8 +162,7 @@ async def refresh_holding(holding_id: int, session: AsyncSession = Depends(profi
     price = await fetch_price(h.symbol)
     if price is None:
         raise HTTPException(status_code=502, detail=f"Market price unavailable for {h.symbol}")
-    h.current_price = price
-    await session.commit()
+    await _apply_price(session, h, price)
     await session.refresh(h)
     return _summarize(h)
 
@@ -146,7 +176,7 @@ async def refresh_all_holdings(session: AsyncSession = Depends(profile_session))
     for h in rows:
         price = await fetch_price(h.symbol)
         if price is not None:
-            h.current_price = price
+            await _apply_price(session, h, price, commit=False)
     await session.commit()
     for h in rows:
         await session.refresh(h)
