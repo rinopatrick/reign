@@ -128,6 +128,7 @@ async function renderView(view) {
     else if (view === 'budgets') await renderBudgets(content);
     else if (view === 'categories') await renderCategories(content);
     else if (view === 'goals') await renderGoals(content);
+    else if (view === 'invest') await renderInvest(content);
     else if (view === 'forecast') await renderForecast(content);
     else if (view === 'calendar') await renderCalendar(content);
     else if (view === 'recurring') await renderRecurring(content);
@@ -1069,6 +1070,80 @@ async function deleteGoal(id) {
   if (!confirm('Delete this goal?')) return;
   await apiDelete(`/api/goals/${id}`);
   renderView('goals');
+}
+
+// ============== INVESTMENTS ==============
+async function renderInvest(container) {
+  const [holdings, accounts] = await Promise.all([apiGet('/api/holdings'), apiGet('/api/accounts')]);
+  const total = holdings.reduce((a, h) => a + Number(h.value), 0);
+  const pnl = holdings.reduce((a, h) => a + Number(h.pnl), 0);
+  container.innerHTML = `
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+      <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4 shadow-sm">
+        <p class="text-xs text-gray-500 uppercase">Portfolio Value</p>
+        <p class="text-2xl font-bold dark:text-gray-100">${formatMoney(total)}</p>
+      </div>
+      <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4 shadow-sm">
+        <p class="text-xs text-gray-500 uppercase">Unrealized P/L</p>
+        <p class="text-2xl font-bold ${pnl >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${pnl >= 0 ? '+' : ''}${formatMoney(pnl)}</p>
+      </div>
+      <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4 shadow-sm">
+        <p class="text-xs text-gray-500 uppercase">Holdings</p>
+        <p class="text-2xl font-bold dark:text-gray-100">${holdings.length}</p>
+      </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 shadow-sm p-4 mb-4">
+      <form onsubmit="createHolding(event)" class="flex gap-3 flex-wrap">
+        <input name="symbol" placeholder="Symbol (e.g. BBCA)" class="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm" required>
+        <input name="units" type="number" step="any" placeholder="Units" class="w-28 border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm" required>
+        <input name="cost_basis" type="number" step="any" placeholder="Avg cost" class="w-32 border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm" required>
+        <input name="current_price" type="number" step="any" placeholder="Price now" class="w-32 border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm" required>
+        <select name="account_id" class="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm">
+          ${accounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('')}
+        </select>
+        <button type="submit" class="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800">Add Holding</button>
+      </form>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 shadow-sm overflow-x-auto">
+      <table class="w-full text-sm text-left">
+        <thead class="bg-gray-50 dark:bg-gray-700 text-xs uppercase text-gray-500 dark:text-gray-400">
+          <tr><th class="px-4 py-3">Symbol</th><th class="px-4 py-3 text-right">Units</th><th class="px-4 py-3 text-right">Avg Cost</th><th class="px-4 py-3 text-right">Price</th><th class="px-4 py-3 text-right">Value</th><th class="px-4 py-3 text-right">P/L</th><th class="px-4 py-3"></th></tr>
+        </thead>
+        <tbody>
+          ${holdings.length === 0 ? '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">No holdings yet.</td></tr>' : holdings.map(h => `
+            <tr class="border-b dark:border-gray-700">
+              <td class="px-4 py-3 font-medium dark:text-gray-200">${escapeHtml(h.symbol)}</td>
+              <td class="px-4 py-3 text-right dark:text-gray-300">${h.units}</td>
+              <td class="px-4 py-3 text-right dark:text-gray-300">${formatMoney(h.cost_basis, h.currency)}</td>
+              <td class="px-4 py-3 text-right dark:text-gray-300">${formatMoney(h.current_price, h.currency)}</td>
+              <td class="px-4 py-3 text-right font-medium dark:text-gray-200">${formatMoney(h.value, h.currency)}</td>
+              <td class="px-4 py-3 text-right font-medium ${Number(h.pnl) >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${formatMoney(h.pnl, h.currency)}</td>
+              <td class="px-4 py-3 text-right"><button onclick="deleteHolding(${h.id})" class="text-gray-400 hover:text-rose-600">Delete</button></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function createHolding(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  await apiPost('/api/holdings', {
+    symbol: fd.get('symbol'),
+    units: parseFloat(fd.get('units')),
+    cost_basis: parseFloat(fd.get('cost_basis')),
+    current_price: parseFloat(fd.get('current_price')),
+    account_id: parseInt(fd.get('account_id')),
+    currency: 'IDR',
+  });
+  renderView('invest');
+}
+
+async function deleteHolding(id) {
+  if (!confirm('Delete this holding?')) return;
+  await apiDelete(`/api/holdings/${id}`);
+  renderView('invest');
 }
 
 // ============== FORECAST ==============

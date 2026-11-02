@@ -149,3 +149,25 @@ class AppSetting(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     key: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     value: Mapped[str | None] = mapped_column(Text, default="")
+
+
+class Holding(Base):
+    """Investment holding: units of a symbol held in an account.
+
+    cost_basis = average buy price per unit; current_price updated manually
+    (or by a future price fetcher). value = units * current_price,
+    pnl = value - units * cost_basis.
+    """
+
+    __tablename__ = "holdings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(20), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(100), default="")
+    units: Mapped[Decimal] = mapped_column(Numeric(18, 8), default=Decimal("0"))
+    cost_basis: Mapped[Decimal] = mapped_column(Numeric(18, 2), default=Decimal("0"))
+    current_price: Mapped[Decimal] = mapped_column(Numeric(18, 2), default=Decimal("0"))
+    currency: Mapped[str] = mapped_column(String(3), default="IDR")
+
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"), nullable=False)
+    account: Mapped[Account] = relationship()
