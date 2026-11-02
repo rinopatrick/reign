@@ -1,7 +1,10 @@
 """Tests: investment holdings CRUD + valuation."""
 
+import io
+
 import pytest
 from httpx import ASGITransport, AsyncClient
+from pypdf import PdfReader
 
 from reign.api.app import app
 from reign.services import notify as notify_module
@@ -184,3 +187,12 @@ async def test_push_send_mocked(monkeypatch):
     monkeypatch.setattr(notify_module, "send_webpush", lambda *a: calls.append(a) or True)
     assert await notify_module.send_push_alerts(FakeSession(), "t", "b") == 1
     assert calls
+
+
+@pytest.mark.asyncio
+async def test_holdings_pdf_bilingual(client):
+    for lang, marker in (("id", "Portofolio"), ("en", "Portfolio")):
+        r = await client.get(f"/api/reports/holdings?lang={lang}")
+        assert r.status_code == 200
+        text = PdfReader(io.BytesIO(r.content)).pages[0].extract_text()
+        assert marker in text

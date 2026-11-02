@@ -1106,7 +1106,8 @@ async function renderInvest(container) {
       <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h3 class="text-sm font-semibold dark:text-gray-200">Add / Refresh</h3>
         <button onclick="refreshAllPrices()" class="text-sm px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500">Refresh prices</button>
-        <button onclick="downloadHoldingsPdf()" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Export PDF</button>
+        <button onclick="downloadHoldingsPdf('id')" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">PDF ID</button>
+        <button onclick="downloadHoldingsPdf('en')" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">PDF EN</button>
         <button onclick="togglePushSubscription()" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Aktifkan notifikasi push</button>
       </div>
       <form onsubmit="createHolding(event)" class="flex gap-3 flex-wrap">
@@ -1234,13 +1235,13 @@ async function refreshAllPrices() {
   renderView('invest');
 }
 
-async function downloadHoldingsPdf() {
-  const r = await apiFetch('/api/reports/holdings');
+async function downloadHoldingsPdf(lang = 'id') {
+  const r = await apiFetch(`/api/reports/holdings?lang=${lang}`);
   if (!r.ok) { alert('Export PDF gagal'); return; }
   const blob = await r.blob();
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'holdings.pdf';
+  a.download = `holdings_${lang}.pdf`;
   a.click();
 }
 

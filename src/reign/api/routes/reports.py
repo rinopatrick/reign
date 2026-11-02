@@ -1,5 +1,6 @@
 """Report generation routes."""
 
+import dataclasses
 from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
@@ -20,18 +21,28 @@ from reign.services.pdf_generator import (
 router = APIRouter()
 
 
+@dataclasses.dataclass
+class MonthlyParams:
+    """Bundled monthly-report query params (keeps the endpoint signature small)."""
+
+    year: int | None = None
+    month: int | None = None
+    currency: str = "IDR"
+    lang: str = "id"
+
+
 @router.get("/monthly")
 async def monthly_report(
     request: Request,
-    year: int | None = None,
-    month: int | None = None,
-    currency: str = "IDR",
+    params: MonthlyParams = Depends(),
     session: AsyncSession = Depends(profile_session),
 ):
     profile = validate_slug(request.headers.get("x-reign-profile", "") or "default")
     now = datetime.now()
-    year = year or now.year
-    month = month or now.month
+    year = params.year or now.year
+    month = params.month or now.month
+    currency = params.currency
+    lang = params.lang if params.lang in ("id", "en") else "id"
 
     tx_repo = TransactionRepository(session)
     summary = await tx_repo.get_summary(year, month, currency)
@@ -45,10 +56,11 @@ async def monthly_report(
             summary=summary,
             category_totals=category_rows,
             profile=profile,
+            lang=lang,
         )
     )
 
-    filename = f"report_{profile}_{year}{month:02d}_{currency}.pdf"
+    filename = f"report_{profile}_{year}{month:02d}_{currency}_{lang}.pdf"
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",
@@ -57,8 +69,11 @@ async def monthly_report(
 
 
 @router.get("/holdings")
-async def holdings_report(request: Request, session: AsyncSession = Depends(profile_session)):
+async def holdings_report(
+    request: Request, lang: str = "id", session: AsyncSession = Depends(profile_session)
+):
     """Holdings portfolio PDF for the active profile."""
+    lang = lang if lang in ("id", "en") else "id"
     profile = validate_slug(request.headers.get("x-reign-profile", "") or "default")
     repo = HoldingRepository(session)
     rows = await repo.list()
@@ -73,8 +88,8 @@ async def holdings_report(request: Request, session: AsyncSession = Depends(prof
         }
         for h in rows
     ]
-    pdf_bytes = generate_holdings_report(items, profile=profile)
-    filename = f"holdings_{profile}.pdf"
+    pdf_bytes = generate_holdings_report(items, profile=profile, lang=lang)
+    filename = f"holdings_{profile}_{lang}.pdf"
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",
