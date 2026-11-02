@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from reign.adapters.database import get_session
 from reign.adapters.repository import AccountRepository
+from reign.api.routes.profiles import profile_session
 from reign.api.schemas import AccountCreate, AccountOut
 from reign.domain.models import Account
 from reign.exceptions import NotFoundError
@@ -13,7 +14,7 @@ router = APIRouter()
 
 
 @router.get("", response_model=list[AccountOut])
-async def list_accounts(session: AsyncSession = Depends(get_session)):
+async def list_accounts(session: AsyncSession = Depends(profile_session)):
     repo = AccountRepository(session)
     return await repo.list()
 

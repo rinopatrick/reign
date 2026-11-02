@@ -15,3 +15,7 @@ class NotFoundError(AppError):
 
 class CSVParseError(AppError):
     """Raised when CSV parsing fails."""
+
+
+class ProfileError(AppError):
+    """Raised for invalid local profile slugs."""

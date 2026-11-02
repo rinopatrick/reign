@@ -17,6 +17,7 @@ from reign.api.routes.categories import router as categories_router
 from reign.api.routes.dashboard import router as dashboard_router
 from reign.api.routes.forecast import router as forecast_router
 from reign.api.routes.goals import router as goals_router
+from reign.api.routes.profiles import router as profiles_router
 from reign.api.routes.recurring import router as recurring_router
 from reign.api.routes.reports import router as reports_router
 from reign.api.routes.settings import router as settings_router
@@ -60,6 +61,7 @@ app.include_router(transactions_router, prefix="/api/transactions", tags=["trans
 app.include_router(budgets_router, prefix="/api/budgets", tags=["budgets"])
 app.include_router(dashboard_router, prefix="/api/dashboard", tags=["dashboard"])
 app.include_router(goals_router, prefix="/api/goals", tags=["goals"])
+app.include_router(profiles_router, prefix="/api/profiles", tags=["profiles"])
 app.include_router(forecast_router, prefix="/api/forecast", tags=["forecast"])
 app.include_router(backup_router, prefix="/api", tags=["backup"])
 app.include_router(reports_router, prefix="/api/reports", tags=["reports"])
