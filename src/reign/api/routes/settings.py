@@ -19,6 +19,8 @@ ALLOWED_SETTING_KEYS = {
     "auto_backup_interval_days",
     "auto_backup_last_run",
     "auto_backup_compress",
+    "digest_enabled",
+    "digest_last_run",
     "theme",
     "default_currency",
 }

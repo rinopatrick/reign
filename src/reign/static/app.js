@@ -1640,6 +1640,7 @@ async function renderSettings(container) {
   const enabled = (settings.auto_backup_enabled || 'false').toLowerCase() === 'true';
   const interval = settings.auto_backup_interval_days || '7';
   const compress = (settings.auto_backup_compress || 'true').toLowerCase() === 'true';
+  const digest = (settings.digest_enabled || 'false').toLowerCase() === 'true';
   const lastRun = settings.auto_backup_last_run || 'Never';
 
   container.innerHTML = `
@@ -1692,6 +1693,18 @@ async function renderSettings(container) {
           </div>
           <p class="text-xs text-gray-400 dark:text-gray-500">Backups are saved to <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">backups/</code> in the app folder. Maximum ${10} auto-backups are kept.</p>
         <div class="border-t dark:border-gray-700 pt-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium dark:text-gray-200">Digest harian</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">Ringkasan pemasukan, pengeluaran, dan alert via channel aktif</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="digest-toggle" class="sr-only peer" ${digest ? 'checked' : ''} onchange="toggleDigest()">
+              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+        </div>
+        <div class="border-t dark:border-gray-700 pt-3">
           <p class="text-sm font-medium dark:text-gray-200">Web Push (VAPID)</p>
           <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">Generate sekali, simpan kedua kunci ke env server lalu restart. Private key hanya tampil sekali.</p>
           <button onclick="generateVapid()" class="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800">Generate VAPID keys</button>
@@ -1729,6 +1742,15 @@ async function toggleAutoBackup() {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ value: enabled ? 'true' : 'false' }),
+  });
+}
+
+async function toggleDigest() {
+  const digest = document.getElementById('digest-toggle').checked;
+  await apiFetch('/api/settings/digest_enabled', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ value: digest ? 'true' : 'false' }),
   });
 }
 
