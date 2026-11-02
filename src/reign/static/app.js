@@ -320,6 +320,10 @@ async function renderTransactions(container) {
             </label>
             <button onclick="exportTransactions('csv')" class="text-sm px-3 py-2 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Export CSV</button>
             <button onclick="exportTransactions('json')" class="text-sm px-3 py-2 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Export JSON</button>
+            <label class="cursor-pointer inline-flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-500 transition">
+              Reconcile statement
+              <input type="file" accept=".csv,.ofx,.qfx" class="hidden" onchange="reconcileStatement(this)">
+            </label>
           </div>
         </div>
         <div class="flex gap-2">
@@ -463,6 +467,27 @@ async function bulkReconcile() {
   if (!ids.length) return;
   await apiPost('/api/transactions/bulk-reconcile', { ids: ids.map(Number) });
   renderView('transactions');
+}
+
+async function reconcileStatement(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const accountId = document.getElementById('tx-account-filter')?.value;
+  if (!accountId) { alert('Pilih akun dulu di filter akun'); input.value = ''; return; }
+  const autoMark = confirm('Tandai yang cocok sebagai reconciled otomatis? OK = ya, Cancel = preview saja.');
+  const form = new FormData();
+  form.append('file', file);
+  const q = new URLSearchParams({ account_id: accountId, tolerance_days: '2', auto_mark: autoMark });
+  const r = await fetch(API + '/api/transactions/reconcile-statement?' + q.toString(), { method: 'POST', body: form });
+  const result = await r.json();
+  const status = document.getElementById('import-status');
+  if (!r.ok) {
+    status.textContent = 'Error: ' + (result.detail || 'Reconcile gagal');
+  } else {
+    status.textContent = `Cocok ${result.totals.matched} dari ${result.totals.statement_rows} baris${result.marked_reconciled ? ` (${result.marked_reconciled} ditandai)` : ''}.`;
+    renderView('transactions');
+  }
+  input.value = '';
 }
 
 async function deleteTransaction(id) {

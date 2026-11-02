@@ -22,6 +22,7 @@ from reign.api.schemas import (
     BulkIds,
     BulkUpdate,
     CSVImportResponse,
+    ReconcileResult,
     TransactionCreate,
     TransactionListParams,
     TransactionOut,
@@ -33,9 +34,12 @@ from reign.exceptions import CSVParseError, NotFoundError
 from reign.services.categorizer import categorize_transactions
 from reign.services.csv_parser import parse_csv
 from reign.services.ofx_parser import parse_ofx
+from reign.services.reconcile import reconcile_statement
 from reign.services.uploads import read_limited_upload
 
 router = APIRouter()
+
+MAX_RECONCILE_TOLERANCE_DAYS = 30
 
 
 @router.get("", response_model=list[TransactionOut])
@@ -182,6 +186,47 @@ async def bulk_reconcile(data: BulkIds, session: AsyncSession = Depends(get_sess
     repo = TransactionRepository(session)
     await repo.bulk_reconcile(data.ids)
     return {"message": f"Reconciled {len(data.ids)} transactions"}
+
+
+@router.post("/reconcile-statement", response_model=ReconcileResult)
+async def reconcile_statement_upload(
+    account_id: int,
+    file: UploadFile = File(...),
+    *,
+    tolerance_days: int = 2,
+    auto_mark: bool = False,
+    session: AsyncSession = Depends(get_session),
+):
+    """Match an uploaded statement (CSV/OFX/QFX) against ledger transactions."""
+    name = (file.filename or "").lower()
+    if not (name.endswith(".csv") or name.endswith((".ofx", ".qfx"))):
+        raise HTTPException(status_code=400, detail="File must be CSV, OFX, or QFX")
+    if name.endswith(".csv") and not file.filename:
+        raise HTTPException(status_code=400, detail="File must have a name")
+    if file.size is not None and file.size > settings.max_csv_bytes:
+        raise HTTPException(status_code=413, detail="Statement too large (max 5MB)")
+    try:
+        await AccountRepository(session).get(account_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    if tolerance_days < 0 or tolerance_days > MAX_RECONCILE_TOLERANCE_DAYS:
+        raise HTTPException(status_code=400, detail="tolerance_days must be 0-30")
+    content = await read_limited_upload(file, settings.max_csv_bytes, "Statement")
+    try:
+        if name.endswith((".ofx", ".qfx")):
+            _, parsed = parse_ofx(bytes(content))
+        else:
+            _, parsed = parse_csv(content)
+    except CSVParseError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    result = await reconcile_statement(
+        session,
+        account_id=account_id,
+        statement_rows=parsed,
+        tolerance_days=tolerance_days,
+        auto_mark=auto_mark,
+    )
+    return result
 
 
 @router.post("/bulk-update")
