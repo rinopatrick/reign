@@ -1,5 +1,16 @@
 # Changelog — Reign
 
+## v0.4.0 — Bank coverage + reconciliation + PWA + profiles (2026-11-02)
+
+- Parser BRI + BNI (disambiguasi gaya tanggal) dan Blu + Jago (marker khas, CR/DB + signed amount) — PR #41, #44
+- OFX/QFX import + preview + validasi 400/413/422 — PR #42
+- Coverage 69% → 81% (goals/recurring/settings CRUD+404, reports, backup trigger, transactions/budgets FK) — PR #43
+- Rekonsiliasi statement vs ledger (match amount + toleransi tanggal + skor deskripsi, auto-mark, tombol UI) — PR #45
+- PWA: manifest, service worker offline-shell + network-first API 5s, ikon SVG, theme-color — PR #46
+- Multi-user local profiles (1 DB per profil, validasi slug, auto-init, /api/profiles, header X-Reign-Profile, switcher UI) — PR #47
+- ADR-001: tetap `create_all` + `schema_version` guard, tolak DB lebih baru — PR #48
+- Suite: 67 passed, ruff check + format bersih, JS valid
+
 ## v0.3.0 — Production hardening (2026-11-01)
 
 Full autonomous hardening of the v0.2.0 codebase (fases A–H, goal `mvxpogxs-eukkty`).
