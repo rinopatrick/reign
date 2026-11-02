@@ -11,6 +11,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -30,6 +31,7 @@ from reign.adapters.repository import (
 )
 from reign.config import settings
 from reign.domain.models import Budget, RecurringTransaction, TransactionSplit
+from reign.exceptions import ProfileError
 from reign.services.restore import restore_counts, run_restore, validate_backup_shape
 from reign.services.settings import get_setting as _get_setting, set_setting as _set_setting
 from reign.services.uploads import read_limited_upload
@@ -286,3 +288,51 @@ async def trigger_backup(request: Request):
     if filepath:
         return {"message": "Backup saved", "path": filepath}
     return {"message": "Backup skipped — auto-backup is disabled"}
+
+
+class ProfileTransferIn(BaseModel):
+    slug: str
+
+
+@router.get("/profiles/export")
+async def export_profile(request: Request):
+    """Download one self-contained file: profile slug + full backup payload."""
+    profile = _req_profile(request)
+    await init_db(profile)
+    async with _session_for_request(request) as session:
+        data = await _collect_backup_data(session)
+    payload = {"kind": "reign-profile", "version": 1, "profile": profile, "backup": data}
+    return JSONResponse(
+        content=json.loads(json.dumps(payload, cls=DecimalEncoder)),
+        headers={"Content-Disposition": f"attachment; filename=reign_profile_{profile}.json"},
+    )
+
+
+@router.post("/profiles/import")
+async def import_profile(payload: ProfileTransferIn, request: Request):
+    """Clone the *current* profile's data into a new profile slug (sync/copy)."""
+    try:
+        target = validate_slug(payload.slug)
+    except ProfileError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    source = _req_profile(request)
+    if target == source:
+        raise HTTPException(status_code=400, detail="Target profile equals current profile")
+    await init_db(source)
+    await init_db(target)
+    async with _session_for_request(request) as session:
+        data = await _collect_backup_data(session)
+    factory = get_session_factory(target)
+    async with factory() as ts:
+        backups_dir = _backups_dir(target)
+        snapshot_path = await _snapshot_current(ts, backups_dir)
+        try:
+            await run_restore(ts, data)
+            await ts.commit()
+        except Exception as e:
+            await ts.rollback()
+            logger.exception("Profile import failed, rolled back: %s", e)
+            raise HTTPException(status_code=422, detail="Profile import failed") from e
+    return {"message": "Profile imported", "from": source, "to": target, "snapshot": snapshot_path}

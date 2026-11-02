@@ -1517,6 +1517,10 @@ async function renderSettings(container) {
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0l-4 4m4-4v12"/></svg>
             Backup Now
           </button>
+          <div class="flex gap-2">
+            <button onclick="exportProfile()" class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition">Export profil</button>
+            <button onclick="cloneProfile()" class="flex-1 flex items-center justify-center gap-2 px-4 py-2 border dark:border-gray-600 dark:text-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition">Salin profil aktif</button>
+          </div>
           <p class="text-xs text-gray-400 dark:text-gray-500">Backups are saved to <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">backups/</code> in the app folder. Maximum ${10} auto-backups are kept.</p>
         </div>
       </div>
@@ -1594,6 +1598,34 @@ async function importBackup(input) {
     navigate('dashboard');
   } else {
     alert('Restore failed: ' + (result.detail || 'Unknown error'));
+  }
+}
+
+async function exportProfile() {
+  const r = await apiFetch('/api/profiles/export');
+  if (!r.ok) { alert('Export profil gagal'); return; }
+  const blob = await r.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `reign_profile_${activeProfile}_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+
+async function cloneProfile() {
+  const target = prompt('Salin profil aktif sebagai profil baru bernama:');
+  if (!target) return;
+  const r = await apiFetch('/api/backup/profiles/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ slug: target }),
+  });
+  const result = await r.json().catch(() => ({}));
+  if (r.ok) {
+    alert('Profil disalin: ' + result.to);
+    await refreshProfileSelect();
+    renderView('settings');
+  } else {
+    alert('Salin profil gagal: ' + (result.detail || 'Unknown error'));
   }
 }
 
