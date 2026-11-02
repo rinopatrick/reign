@@ -53,6 +53,59 @@ logger = logging.getLogger("reign.backup")
 
 BACKUPS_DIR = Path(os.getenv("REIGN_BACKUPS_DIR", settings.backups_dir))
 MAX_AUTO_BACKUPS = 10
+RETENTION_DAILY = 7
+RETENTION_WEEKLY = 4
+RETENTION_MONTHLY = 6
+
+
+def _backup_stamp(path: Path) -> datetime | None:
+    """Parse reign_auto_YYYY-MM-DD_HH-MM-SS stamp from a filename."""
+    name = path.name
+    if not name.startswith("reign_auto_"):
+        return None
+    core = name[len("reign_auto_") :]
+    for suffix in (".json.gz", ".json"):
+        if core.endswith(suffix):
+            core = core[: -len(suffix)]
+            break
+    else:
+        return None
+    try:
+        return datetime.strptime(core, "%Y-%m-%d_%H-%M-%S")
+    except ValueError:
+        return None
+
+
+def prune_backups(backups_dir: Path) -> int:
+    """Tiered retention: 7 daily + 4 weekly + 6 monthly reign_auto files. Returns deleted count."""
+    files = sorted(backups_dir.glob("reign_auto_*.json*"), key=lambda p: p.name, reverse=True)
+    keep: set[Path] = set()
+    seen_days: set[str] = set()
+    seen_weeks: set[str] = set()
+    seen_months: set[str] = set()
+    for path in files:
+        stamp = _backup_stamp(path)
+        if stamp is None:
+            keep.add(path)
+            continue
+        day = stamp.strftime("%Y-%m-%d")
+        week = stamp.strftime("%G-W%V")
+        month = stamp.strftime("%Y-%m")
+        if len(seen_days) < RETENTION_DAILY and day not in seen_days:
+            seen_days.add(day)
+            keep.add(path)
+        elif len(seen_weeks) < RETENTION_WEEKLY and week not in seen_weeks:
+            seen_weeks.add(week)
+            keep.add(path)
+        elif len(seen_months) < RETENTION_MONTHLY and month not in seen_months:
+            seen_months.add(month)
+            keep.add(path)
+    deleted = 0
+    for path in files:
+        if path not in keep:
+            path.unlink()
+            deleted += 1
+    return deleted
 
 
 def _backups_dir(profile: str = "default") -> Path:
@@ -208,9 +261,7 @@ async def do_auto_backup(profile: str = "default") -> str | None:
         with filepath.open("w", encoding="utf-8") as f:
             f.write(payload.decode("utf-8"))
 
-    auto_backups = sorted(backups_dir.glob("reign_auto_*.json*"), key=lambda p: p.stat().st_mtime)
-    for old in auto_backups[:-MAX_AUTO_BACKUPS]:
-        old.unlink()
+    prune_backups(backups_dir)
 
     async with get_session_factory(slug)() as session:
         await _set_setting(session, "auto_backup_last_run", datetime.now().isoformat())
