@@ -18,7 +18,7 @@
 <script>
 tailwind.config = { darkMode: 'class' };
 </script>
-<style>body{font-family:'Inter',sans-serif;}</style>
+<style>body{font-family:'Inter',sans-serif;} :focus-visible{outline:2px solid #0077B6;outline-offset:2px;border-radius:4px} @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:0.01ms !important;transition-duration:0.01ms !important}} @media (max-width:640px){input,select{font-size:16px}}</style>
 </head>
 <body class="bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 transition-colors">
 <div id="app" class="min-h-screen flex">
@@ -30,9 +30,9 @@ tailwind.config = { darkMode: 'class' };
     <div class="p-6 flex items-center justify-between">
       <div>
         <h1 class="text-xl font-bold tracking-tight">Reign</h1>
-        <p class="text-xs text-slate-400 mt-1">Local-first finance</p>
+        <p class="text-xs text-slate-300 mt-1">Local-first finance</p>
       </div>
-      <button onclick="toggleSidebar()" class="md:hidden text-slate-400 hover:text-white">
+      <button onclick="toggleSidebar()" aria-label="Tutup navigasi" class="md:hidden text-slate-300 hover:text-white">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
     </div>

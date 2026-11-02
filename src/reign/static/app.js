@@ -168,15 +168,15 @@ async function renderDashboard(container) {
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
       <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-5 shadow-sm">
         <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Income</p>
-        <p class="text-2xl font-bold text-emerald-600 mt-1">${formatMoney(summary.month_income)}</p>
+        <p class="text-2xl font-bold text-emerald-600 mt-1 tabular-nums">${formatMoney(summary.month_income)}</p>
       </div>
       <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-5 shadow-sm">
         <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Expense</p>
-        <p class="text-2xl font-bold text-rose-600 mt-1">${formatMoney(summary.month_expense)}</p>
+        <p class="text-2xl font-bold text-rose-600 mt-1 tabular-nums">${formatMoney(summary.month_expense)}</p>
       </div>
       <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-5 shadow-sm">
         <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Net</p>
-        <p class="text-2xl font-bold ${netColor} mt-1">${netSign}${formatMoney(summary.month_net)}</p>
+        <p class="text-2xl font-bold ${netColor} mt-1 tabular-nums">${netSign}${formatMoney(summary.month_net)}</p>
       </div>
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -1096,7 +1096,7 @@ async function renderInvest(container) {
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
       <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4 shadow-sm">
         <p class="text-xs text-gray-500 uppercase">Portfolio Value</p>
-        <p class="text-2xl font-bold dark:text-gray-100">${formatMoney(total)}</p>
+        <p class="text-2xl font-bold dark:text-gray-100 tabular-nums">${formatMoney(total)}</p>
         <div class="mt-2 h-[180px]"><canvas id="allocChart"></canvas></div>
       </div>
       <div class="grid grid-cols-1 gap-4 md:col-span-3">
@@ -1113,7 +1113,7 @@ async function renderInvest(container) {
     <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 shadow-sm p-4 mb-4">
       <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h3 class="text-sm font-semibold dark:text-gray-200">Add / Refresh</h3>
-        <button onclick="refreshAllPrices()" class="text-sm px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500">Refresh prices</button>
+        <button onclick="refreshAllPrices()" class="text-sm px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-transform enabled:active:scale-[0.96]">Refresh prices</button>
         <button onclick="downloadHoldingsPdf('id')" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">PDF ID</button>
         <button onclick="downloadHoldingsPdf('en')" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">PDF EN</button>
         <button onclick="togglePushSubscription()" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Aktifkan notifikasi push</button>
@@ -1128,7 +1128,7 @@ async function renderInvest(container) {
         <select name="account_id" class="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm">
           ${accounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('')}
         </select>
-        <button type="submit" class="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800">Add Holding</button>
+        <button type="submit" class="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-transform enabled:active:scale-[0.96]">Add Holding</button>
       </form>
     </div>
     <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 shadow-sm overflow-x-auto">
@@ -1245,7 +1245,7 @@ async function refreshAllPrices() {
 
 async function downloadHoldingsPdf(lang = 'id') {
   const r = await apiFetch(`/api/reports/holdings?lang=${lang}`);
-  if (!r.ok) { alert('Export PDF gagal'); return; }
+  if (!r.ok) { alert('Export PDF gagal, coba lagi.'); return; }
   const blob = await r.blob();
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -1697,16 +1697,16 @@ async function renderSettings(container) {
         <div class="space-y-4">
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-sm font-medium dark:text-gray-200">Enable Auto-Backup</p>
-              <p class="text-xs text-gray-500 dark:text-gray-400">Automatically save backups to the backups/ folder</p>
+              <p class="text-sm font-medium dark:text-gray-200">Backup otomatis</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">Simpan arsip otomatis ke folder backups/</p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" id="auto-backup-toggle" class="sr-only peer" ${enabled ? 'checked' : ''} onchange="toggleAutoBackup()">
+              <input type="checkbox" id="auto-backup-toggle" aria-label="Backup otomatis" class="sr-only peer" ${enabled ? 'checked' : ''} onchange="toggleAutoBackup()">
               <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
             </label>
           </div>
           <div>
-            <label class="text-xs text-gray-500 dark:text-gray-400">Backup Interval</label>
+            <label class="text-xs text-gray-500 dark:text-gray-400">Interval backup</label>
             <select id="backup-interval" class="w-full text-sm border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 mt-1" onchange="changeBackupInterval()">
               <option value="1" ${interval === '1' ? 'selected' : ''}>Daily</option>
               <option value="7" ${interval === '7' ? 'selected' : ''}>Weekly</option>
@@ -1719,23 +1719,23 @@ async function renderSettings(container) {
               <p class="text-xs text-gray-500 dark:text-gray-400">Hemat ruang, restore tetap bisa baca .gz</p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" id="compress-toggle" class="sr-only peer" ${compress ? 'checked' : ''} onchange="toggleCompress()">
+              <input type="checkbox" id="compress-toggle" aria-label="Kompres arsip gzip" class="sr-only peer" ${compress ? 'checked' : ''} onchange="toggleCompress()">
               <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
             </label>
           </div>
           <div class="flex items-center justify-between text-sm">
-            <span class="text-gray-500 dark:text-gray-400">Last backup:</span>
+            <span class="text-gray-500 dark:text-gray-400">Terakhir:</span>
             <span class="font-medium dark:text-gray-200">${escapeHtml(lastRun === 'Never' ? 'Never' : new Date(lastRun).toLocaleString())}</span>
           </div>
-          <button onclick="triggerBackupNow()" class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition">
+          <button onclick="triggerBackupNow()" class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-transform enabled:active:scale-[0.96]">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0l-4 4m4-4v12"/></svg>
-            Backup Now
+            Backup sekarang
           </button>
           <div class="flex gap-2">
             <button onclick="exportProfile()" class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition">Export profil</button>
             <button onclick="cloneProfile()" class="flex-1 flex items-center justify-center gap-2 px-4 py-2 border dark:border-gray-600 dark:text-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition">Salin profil aktif</button>
           </div>
-          <p class="text-xs text-gray-400 dark:text-gray-500">Backups are saved to <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">backups/</code> in the app folder. Maximum ${10} auto-backups are kept.</p>
+          <p class="text-xs text-gray-400 dark:text-gray-500">Arsip tersimpan di <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">backups/</code> folder aplikasi. Retensi: 7 harian + 4 mingguan + 6 bulanan.</p>
         <div class="border-t dark:border-gray-700 pt-3">
           <div class="flex items-center justify-between">
             <div>
@@ -1743,7 +1743,7 @@ async function renderSettings(container) {
               <p class="text-xs text-gray-500 dark:text-gray-400">Ringkasan pemasukan, pengeluaran, dan alert via channel aktif</p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" id="digest-toggle" class="sr-only peer" ${digest ? 'checked' : ''} onchange="toggleDigest()">
+              <input type="checkbox" id="digest-toggle" aria-label="Digest harian" class="sr-only peer" ${digest ? 'checked' : ''} onchange="toggleDigest()">
               <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
             </label>
           </div>
