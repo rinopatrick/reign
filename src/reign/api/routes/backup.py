@@ -29,6 +29,7 @@ from reign.adapters.repository import (
     TransactionListFilter,
     TransactionRepository,
 )
+from reign.api.routes.holdings import _fire_alert_if_hit
 from reign.config import settings
 from reign.domain.models import Budget, Holding, PricePoint, RecurringTransaction, TransactionSplit
 from reign.exceptions import ProfileError
@@ -236,6 +237,7 @@ async def market_scheduler(interval_hours: int = 24) -> None:
                     session.add(
                         PricePoint(holding_id=h.id, price=price, currency=h.currency or "IDR")
                     )
+                    await _fire_alert_if_hit(session, h, price)
                 await session.commit()
                 if rows:
                     logger.info("Market refresh saved for %d holdings", len(rows))
