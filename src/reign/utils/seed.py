@@ -68,7 +68,7 @@ DEFAULT_CATEGORIES = [
 ]
 
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 
 async def seed_categories(session: AsyncSession) -> None:

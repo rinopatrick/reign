@@ -1074,10 +1074,17 @@ async function deleteGoal(id) {
 
 // ============== INVESTMENTS ==============
 async function renderInvest(container) {
-  const [holdings, accounts] = await Promise.all([apiGet('/api/holdings'), apiGet('/api/accounts')]);
+  const [holdings, accounts, alerts] = await Promise.all([apiGet('/api/holdings'), apiGet('/api/accounts'), apiGet('/api/holdings/alerts/list?unread_only=true').catch(() => [])]);
   const total = holdings.reduce((a, h) => a + Number(h.value), 0);
   const pnl = holdings.reduce((a, h) => a + Number(h.pnl), 0);
   container.innerHTML = `
+    ${alerts.length ? `<div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 mb-4 text-sm">
+      <div class="flex items-center justify-between mb-2">
+        <span class="font-semibold text-amber-800 dark:text-amber-300">${alerts.length} alert${alerts.length > 1 ? 's' : ''} harga tercapai</span>
+        <button onclick="markAllAlertsRead()" class="text-xs text-amber-700 dark:text-amber-400 underline">Tandai dibaca</button>
+      </div>
+      ${alerts.slice(0, 5).map(a => `<div class="text-amber-700 dark:text-amber-400">${escapeHtml(a.symbol)} ${a.direction === 'above' ? '>=' : '<='} ${escapeHtml(String(a.target))} <button class="underline" onclick="markAlertRead(${a.id})">OK</button></div>`).join('')}
+    </div>` : ''}
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
       <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4 shadow-sm">
         <p class="text-xs text-gray-500 uppercase">Portfolio Value</p>
@@ -1167,6 +1174,16 @@ async function refreshHolding(id) {
 
 async function refreshAllPrices() {
   await apiPost('/api/holdings/refresh-all', {});
+  renderView('invest');
+}
+
+async function markAlertRead(id) {
+  await apiPost(`/api/holdings/alerts/${id}/read`, {});
+  renderView('invest');
+}
+
+async function markAllAlertsRead() {
+  await apiPost('/api/holdings/alerts/read-all', {});
   renderView('invest');
 }
 

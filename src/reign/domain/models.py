@@ -155,7 +155,7 @@ class Holding(Base):
     """Investment holding: units of a symbol held in an account.
 
     cost_basis = average buy price per unit; current_price updated manually
-    (or by a future price fetcher). value = units * current_price,
+    (or by the market-price fetcher). value = units * current_price,
     pnl = value - units * cost_basis.
     """
 
@@ -190,3 +190,20 @@ class PricePoint(Base):
     at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     holding: Mapped["Holding"] = relationship(back_populates="prices")
+
+
+class PriceAlert(Base):
+    """Fired price alert (append-only; one open row per holding+direction)."""
+
+    __tablename__ = "price_alerts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    holding_id: Mapped[int] = mapped_column(ForeignKey("holdings.id"), nullable=False)
+    direction: Mapped[str] = mapped_column(String(10), nullable=False)
+    price: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    target: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), default="IDR")
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    holding: Mapped[Holding] = relationship()
