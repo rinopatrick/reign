@@ -1668,6 +1668,12 @@ async function renderSettings(container) {
             <button onclick="cloneProfile()" class="flex-1 flex items-center justify-center gap-2 px-4 py-2 border dark:border-gray-600 dark:text-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition">Salin profil aktif</button>
           </div>
           <p class="text-xs text-gray-400 dark:text-gray-500">Backups are saved to <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">backups/</code> in the app folder. Maximum ${10} auto-backups are kept.</p>
+        <div class="border-t dark:border-gray-700 pt-3">
+          <p class="text-sm font-medium dark:text-gray-200">Web Push (VAPID)</p>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">Generate sekali, simpan kedua kunci ke env server lalu restart. Private key hanya tampil sekali.</p>
+          <button onclick="generateVapid()" class="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800">Generate VAPID keys</button>
+          <pre id="vapid-output" class="hidden mt-2 text-xs bg-gray-100 dark:bg-gray-700 dark:text-gray-200 rounded-lg p-3 whitespace-pre-wrap break-all"></pre>
+        </div>
         <div>
           <div class="flex items-center justify-between mb-1">
             <span class="text-xs text-gray-500 dark:text-gray-400">Riwayat arsip profil ini</span>
@@ -1709,6 +1715,18 @@ async function changeBackupInterval() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ value: interval }),
   });
+}
+
+async function generateVapid() {
+  const el = document.getElementById('vapid-output');
+  try {
+    const r = await apiPost('/api/settings/vapid/generate', {});
+    const d = await r.json();
+    el.classList.remove('hidden');
+    el.textContent = `VAPID_PUBLIC_KEY=${d.public_key}\nVAPID_PRIVATE_KEY=${d.private_key}\n\n${d.env_hint} Private key hanya tampil sekali — simpan sekarang!`;
+  } catch (e) {
+    alert('Generate VAPID gagal: ' + e.message);
+  }
 }
 
 async function loadBackupHistory() {

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from reign.api.routes.profiles import profile_session
 from reign.domain.models import AppSetting
+from reign.services.notify import generate_vapid_keys
 from reign.services.settings import get_setting, set_setting
 
 router = APIRouter()
@@ -24,6 +25,17 @@ ALLOWED_SETTING_KEYS = {
 
 class SettingUpdate(BaseModel):
     value: str
+
+
+@router.post("/vapid/generate")
+async def generate_vapid():
+    """Generate a VAPID ES256 keypair. Private key is shown ONCE — save it to env."""
+    public_key, private_key = generate_vapid_keys()
+    return {
+        "public_key": public_key,
+        "private_key": private_key,
+        "env_hint": "Set VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY, then restart.",
+    }
 
 
 @router.get("")

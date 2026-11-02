@@ -1,10 +1,12 @@
 """Tests: investment holdings CRUD + valuation."""
 
 import io
+from base64 import urlsafe_b64decode
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 from pypdf import PdfReader
+from pywebpush import Vapid
 
 from reign.api.app import app
 from reign.services import notify as notify_module
@@ -196,3 +198,21 @@ async def test_holdings_pdf_bilingual(client):
         assert r.status_code == 200
         text = PdfReader(io.BytesIO(r.content)).pages[0].extract_text()
         assert marker in text
+
+
+@pytest.mark.asyncio
+async def test_vapid_generate_returns_valid_keypair(client):
+    r = await client.post("/api/settings/vapid/generate")
+    assert r.status_code == 200
+    data = r.json()
+    pub_raw = urlsafe_b64decode(data["public_key"] + "==")
+    priv_raw = urlsafe_b64decode(data["private_key"] + "==")
+    assert len(pub_raw) == 65 and pub_raw[0] == 4
+    assert len(priv_raw) == 32
+    # Round-trip: pywebpush accepts the private key and signs claims
+    vv = Vapid.from_string(private_key=data["private_key"])
+    headers = vv.sign(
+        {"sub": "mailto:test@localhost", "aud": "https://push.example", "exp": 9999999999}
+    )
+    assert headers["Authorization"].startswith("vapid t=")
+    assert f"k={data['public_key']}" in headers["Authorization"]
