@@ -1639,6 +1639,7 @@ async function renderSettings(container) {
   const settings = await apiGet('/api/settings');
   const enabled = (settings.auto_backup_enabled || 'false').toLowerCase() === 'true';
   const interval = settings.auto_backup_interval_days || '7';
+  const compress = (settings.auto_backup_compress || 'true').toLowerCase() === 'true';
   const lastRun = settings.auto_backup_last_run || 'Never';
 
   container.innerHTML = `
@@ -1666,6 +1667,16 @@ async function renderSettings(container) {
               <option value="7" ${interval === '7' ? 'selected' : ''}>Weekly</option>
               <option value="30" ${interval === '30' ? 'selected' : ''}>Monthly</option>
             </select>
+          </div>
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium dark:text-gray-200">Kompres arsip (gzip)</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">Hemat ruang, restore tetap bisa baca .gz</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="compress-toggle" class="sr-only peer" ${compress ? 'checked' : ''} onchange="toggleCompress()">
+              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+            </label>
           </div>
           <div class="flex items-center justify-between text-sm">
             <span class="text-gray-500 dark:text-gray-400">Last backup:</span>
@@ -1717,6 +1728,15 @@ async function toggleAutoBackup() {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ value: enabled ? 'true' : 'false' }),
+  });
+}
+
+async function toggleCompress() {
+  const compress = document.getElementById('compress-toggle').checked;
+  await apiFetch('/api/settings/auto_backup_compress', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ value: compress ? 'true' : 'false' }),
   });
 }
 

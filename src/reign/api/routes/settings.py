@@ -18,6 +18,7 @@ ALLOWED_SETTING_KEYS = {
     "auto_backup_enabled",
     "auto_backup_interval_days",
     "auto_backup_last_run",
+    "auto_backup_compress",
     "theme",
     "default_currency",
 }

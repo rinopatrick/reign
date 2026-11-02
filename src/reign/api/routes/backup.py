@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import gzip
 import json
 import logging
 import os
@@ -164,6 +165,12 @@ async def _collect_backup_data(session) -> dict:
     }
 
 
+async def _collect_backup_json(session) -> bytes:
+    """Serialize backup payload to compact JSON bytes."""
+    data = await _collect_backup_data(session)
+    return json.dumps(data, cls=DecimalEncoder).encode("utf-8")
+
+
 async def _snapshot_current(session, backups_dir: Path) -> str:
     """Save pre-restore snapshot so a bad restore never loses user data."""
     data = await _collect_backup_data(session)
@@ -180,14 +187,20 @@ async def do_auto_backup(profile: str = "default") -> str | None:
         enabled = (await _get_setting(session, "auto_backup_enabled", "false")).lower() == "true"
         if not enabled:
             return None
-        data = await _collect_backup_data(session)
+        compress = (await _get_setting(session, "auto_backup_compress", "true")).lower() == "true"
+        payload = await _collect_backup_json(session)
 
     backups_dir = _backups_dir(slug)
-    filepath = backups_dir / f"reign_auto_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.json"
-    with filepath.open("w", encoding="utf-8") as f:
-        json.dump(data, f, cls=DecimalEncoder, indent=2)
+    stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    if compress:
+        filepath = backups_dir / f"reign_auto_{stamp}.json.gz"
+        filepath.write_bytes(gzip.compress(payload))
+    else:
+        filepath = backups_dir / f"reign_auto_{stamp}.json"
+        with filepath.open("w", encoding="utf-8") as f:
+            f.write(payload.decode("utf-8"))
 
-    auto_backups = sorted(backups_dir.glob("reign_auto_*.json"), key=lambda p: p.stat().st_mtime)
+    auto_backups = sorted(backups_dir.glob("reign_auto_*.json*"), key=lambda p: p.stat().st_mtime)
     for old in auto_backups[:-MAX_AUTO_BACKUPS]:
         old.unlink()
 
@@ -200,7 +213,9 @@ async def run_backup_cycle(slug: str) -> str | None:
     """One scheduler pass for a profile: skip when disabled, not due, or already archived today."""
     today = datetime.now().strftime("%Y-%m-%d")
     backups_dir = _backups_dir(slug)
-    if any(p.name.startswith(f"reign_auto_{today}") for p in backups_dir.glob("reign_auto_*.json")):
+    if any(
+        p.name.startswith(f"reign_auto_{today}") for p in backups_dir.glob("reign_auto_*.json*")
+    ):
         return None
     try:
         await init_db(slug)
@@ -290,11 +305,20 @@ async def export_backup(request: Request):
 
 @router.post("/restore")
 async def import_backup(request: Request, file: UploadFile = File(...), *, dry_run: bool = False):
-    if not file.filename or not file.filename.lower().endswith(".json"):
-        raise HTTPException(status_code=400, detail="File must be JSON")
-    content = await read_limited_upload(file, settings.max_json_bytes, "Backup")
+    name = (file.filename or "").lower()
+    is_gzip = name.endswith(".json.gz")
+    if not (name.endswith(".json") or is_gzip):
+        raise HTTPException(status_code=400, detail="File must be JSON or JSON.GZ")
+    raw_bytes = await read_limited_upload(file, settings.max_json_bytes, "Backup")
+    if is_gzip:
+        try:
+            raw_bytes = gzip.decompress(raw_bytes)
+        except OSError as e:
+            raise HTTPException(status_code=422, detail="Invalid gzip") from e
+        if len(raw_bytes) > settings.max_json_bytes:
+            raise HTTPException(status_code=413, detail="Decompressed backup too large")
     try:
-        raw = json.loads(content)
+        raw = json.loads(raw_bytes)
     except json.JSONDecodeError as e:
         raise HTTPException(status_code=422, detail="Invalid JSON") from e
     data = validate_backup_shape(raw)
@@ -340,8 +364,10 @@ async def backup_history(request: Request, limit: int = 20):
     """List backup archives for the active profile (newest first)."""
     backups_dir = _backups_dir(_req_profile(request))
     files = sorted(
-        list(backups_dir.glob("reign_auto_*.json"))
-        + list(backups_dir.glob("reign_prerestore_*.json")),
+        [
+            *backups_dir.glob("reign_auto_*.json*"),
+            *backups_dir.glob("reign_prerestore_*.json"),
+        ],
         key=lambda p: p.stat().st_mtime,
         reverse=True,
     )[: max(1, min(limit, 100))]
