@@ -5,7 +5,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from reign.domain.models import Account, Category
+from reign.domain.models import Account, AppSetting, Category
 
 DEFAULT_CATEGORIES = [
     # Income
@@ -68,6 +68,9 @@ DEFAULT_CATEGORIES = [
 ]
 
 
+SCHEMA_VERSION = 3
+
+
 async def seed_categories(session: AsyncSession) -> None:
     """Insert default categories if none exist."""
     result = await session.execute(select(Category))
@@ -85,3 +88,29 @@ async def seed_demo_account(session: AsyncSession) -> None:
         return
     session.add(Account(name="Cash", type="cash", currency="IDR", initial_balance=Decimal("0")))
     await session.commit()
+
+
+async def ensure_schema_version(session: AsyncSession) -> int:
+    """Stamp fresh DBs with SCHEMA_VERSION; reject DBs newer than the app.
+
+    Returns the stored version. Raises RuntimeError when the database was
+    written by a newer app version (open would risk silent corruption).
+    Downgrade path: backup -> fresh DB -> restore.
+    """
+    result = await session.execute(select(AppSetting).where(AppSetting.key == "schema_version"))
+    row = result.scalar_one_or_none()
+    if row is None:
+        row = AppSetting(key="schema_version", value=str(SCHEMA_VERSION))
+        session.add(row)
+        await session.commit()
+        return SCHEMA_VERSION
+    try:
+        stored = int(row.value or 0)
+    except (TypeError, ValueError):
+        stored = 0
+    if stored > SCHEMA_VERSION:
+        raise RuntimeError(
+            f"Database schema v{stored} is newer than app schema v{SCHEMA_VERSION}. "
+            "Update the app, or restore from backup."
+        )
+    return stored
