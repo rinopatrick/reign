@@ -13,6 +13,7 @@ from reign.api.routes.profiles import profile_session
 from reign.domain.enums import Currency
 from reign.domain.models import Holding
 from reign.exceptions import NotFoundError
+from reign.services.market import fetch_price, resolve_yahoo_symbol
 
 router = APIRouter()
 
@@ -104,6 +105,8 @@ async def update_holding(
         raise HTTPException(status_code=404, detail=f"Holding {holding_id} not found")
     for key, value in data.model_dump(exclude_unset=True).items():
         setattr(h, key, value)
+    if h.symbol:
+        h.symbol = h.symbol.upper()
     await session.commit()
     await session.refresh(h)
     return _summarize(h)
@@ -117,3 +120,44 @@ async def delete_holding(holding_id: int, session: AsyncSession = Depends(profil
     await session.delete(h)
     await session.commit()
     return {"message": "Holding deleted"}
+
+
+@router.post("/{holding_id}/refresh", response_model=HoldingOut)
+async def refresh_holding(holding_id: int, session: AsyncSession = Depends(profile_session)):
+    """Refresh one holding's price from the market. 404 when unknown."""
+    h = await session.get(Holding, holding_id)
+    if not h:
+        raise HTTPException(status_code=404, detail=f"Holding {holding_id} not found")
+    price = await fetch_price(h.symbol)
+    if price is None:
+        raise HTTPException(status_code=502, detail=f"Market price unavailable for {h.symbol}")
+    h.current_price = price
+    await session.commit()
+    await session.refresh(h)
+    return _summarize(h)
+
+
+@router.post("/refresh-all", response_model=list[HoldingOut])
+async def refresh_all_holdings(session: AsyncSession = Depends(profile_session)):
+    """Refresh all holdings' prices; entries without a quote keep their price."""
+    stmt = select(Holding).options(selectinload(Holding.account)).order_by(Holding.symbol)
+    rows = (await session.execute(stmt)).scalars().all()
+    out: list[HoldingOut] = []
+    for h in rows:
+        price = await fetch_price(h.symbol)
+        if price is not None:
+            h.current_price = price
+    await session.commit()
+    for h in rows:
+        await session.refresh(h)
+        out.append(_summarize(h))
+    return out
+
+
+@router.get("/market/lookup")
+async def market_lookup(symbol: str):
+    """Preview Yahoo symbol mapping + latest price without saving."""
+    price = await fetch_price(symbol)
+    if price is None:
+        raise HTTPException(status_code=502, detail=f"Market price unavailable for {symbol}")
+    return {"symbol": symbol.upper(), "yahoo_symbol": resolve_yahoo_symbol(symbol), "price": price}

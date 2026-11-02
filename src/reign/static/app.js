@@ -1093,6 +1093,10 @@ async function renderInvest(container) {
       </div>
     </div>
     <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 shadow-sm p-4 mb-4">
+      <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <h3 class="text-sm font-semibold dark:text-gray-200">Add / Refresh</h3>
+        <button onclick="refreshAllPrices()" class="text-sm px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500">Refresh prices</button>
+      </div>
       <form onsubmit="createHolding(event)" class="flex gap-3 flex-wrap">
         <input name="symbol" placeholder="Symbol (e.g. BBCA)" class="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm" required>
         <input name="units" type="number" step="any" placeholder="Units" class="w-28 border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm" required>
@@ -1118,7 +1122,10 @@ async function renderInvest(container) {
               <td class="px-4 py-3 text-right dark:text-gray-300">${formatMoney(h.current_price, h.currency)}</td>
               <td class="px-4 py-3 text-right font-medium dark:text-gray-200">${formatMoney(h.value, h.currency)}</td>
               <td class="px-4 py-3 text-right font-medium ${Number(h.pnl) >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${formatMoney(h.pnl, h.currency)}</td>
-              <td class="px-4 py-3 text-right"><button onclick="deleteHolding(${h.id})" class="text-gray-400 hover:text-rose-600">Delete</button></td>
+              <td class="px-4 py-3 text-right flex items-center justify-end gap-2">
+          <button onclick="refreshHolding(${h.id})" class="text-gray-400 hover:text-emerald-600" title="Refresh price">&#8635;</button>
+          <button onclick="deleteHolding(${h.id})" class="text-gray-400 hover:text-rose-600">Delete</button>
+        </td>
             </tr>`).join('')}
         </tbody>
       </table>
@@ -1143,6 +1150,17 @@ async function createHolding(e) {
 async function deleteHolding(id) {
   if (!confirm('Delete this holding?')) return;
   await apiDelete(`/api/holdings/${id}`);
+  renderView('invest');
+}
+
+async function refreshHolding(id) {
+  const r = await apiPost(`/api/holdings/${id}/refresh`, {});
+  if (!r.ok && r.detail) alert('Refresh gagal: ' + r.detail);
+  renderView('invest');
+}
+
+async function refreshAllPrices() {
+  await apiPost('/api/holdings/refresh-all', {});
   renderView('invest');
 }
 
