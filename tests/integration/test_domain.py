@@ -1,6 +1,7 @@
 """Domain: net-worth, calendar months, recurring forecast, 1-query budgets."""
 
 from datetime import datetime
+from decimal import Decimal
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -107,3 +108,18 @@ async def test_cursor_pagination(client):
         assert r.status_code == 200
         nxt = r.json()
         assert all(x["id"] < last_id for x in nxt)
+
+
+@pytest.mark.asyncio
+async def test_sankey_consistent_with_summary(client):
+    r = await client.get("/api/reports/sankey")
+    assert r.status_code == 200
+    data = r.json()
+    assert Decimal(data["total_in"]) >= 0
+    assert Decimal(data["total_out"]) >= 0
+    out_links = sum(Decimal(x["value"]) for x in data["links"] if x["target"].startswith("out:"))
+    assert out_links == Decimal(data["total_out"])
+    node_ids = {n["id"] for n in data["nodes"]}
+    for link in data["links"]:
+        assert link["source"] in node_ids
+        assert link["target"] in node_ids

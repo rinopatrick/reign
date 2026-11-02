@@ -68,6 +68,49 @@ async def monthly_report(
     )
 
 
+@router.get("/sankey")
+async def sankey(
+    year: int | None = None,
+    month: int | None = None,
+    currency: str = "IDR",
+    session: AsyncSession = Depends(profile_session),
+):
+    """Cash-flow Sankey nodes/links: income categories -> expense categories + remainder."""
+    now = datetime.now()
+    year = year or now.year
+    month = month or now.month
+    tx_repo = TransactionRepository(session)
+    income_cats = await tx_repo.get_income_by_category(year, month, currency)
+    expense_cats = await tx_repo.get_category_totals(year, month, currency)
+    total_in = sum((Decimal(str(v)) for _, v in income_cats), Decimal("0"))
+    total_out = sum((abs(Decimal(str(v))) for _, v in expense_cats), Decimal("0"))
+    remainder = total_in - total_out
+    nodes = [{"id": "income", "label": "Pemasukan"}]
+    nodes += [{"id": f"in:{name}", "label": name} for name, _ in income_cats]
+    nodes += [{"id": f"out:{name}", "label": name} for name, _ in expense_cats]
+    if remainder > 0:
+        nodes.append({"id": "saved", "label": "Sisa"})
+    links = [
+        {"source": "income", "target": f"in:{name}", "value": str(Decimal(str(v)))}
+        for name, v in income_cats
+    ]
+    links += [
+        {"source": "income", "target": f"out:{name}", "value": str(abs(Decimal(str(v))))}
+        for name, v in expense_cats
+    ]
+    if remainder > 0:
+        links.append({"source": "income", "target": "saved", "value": str(remainder)})
+    return {
+        "year": year,
+        "month": month,
+        "currency": currency,
+        "total_in": str(total_in),
+        "total_out": str(total_out),
+        "nodes": nodes,
+        "links": links,
+    }
+
+
 @router.get("/holdings")
 async def holdings_report(
     request: Request, lang: str = "id", session: AsyncSession = Depends(profile_session)

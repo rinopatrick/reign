@@ -304,6 +304,25 @@ class TransactionRepository:
         rows = (await self._session.execute(stmt)).all()
         return {(cid, cur): abs(total) for cid, cur, total in rows if total is not None}
 
+    async def get_income_by_category(
+        self, year: int, month: int, currency: str = "IDR"
+    ) -> Sequence[tuple[str, Decimal]]:
+        """Return income per category for a month."""
+        stmt = (
+            select(Category.name, func.sum(Transaction.amount))
+            .join(Transaction.category)
+            .where(extract("year", Transaction.date) == year)
+            .where(extract("month", Transaction.date) == month)
+            .where(Transaction.currency == currency)
+            .where(Transaction.amount > 0)
+            .where(Transaction.is_deleted.is_(False))
+            .where(Transaction.transaction_type != "transfer")
+            .group_by(Category.name)
+            .order_by(func.sum(Transaction.amount).desc())
+        )
+        result = await self._session.execute(stmt)
+        return result.all()
+
     async def get_category_totals(
         self, year: int, month: int, currency: str = "IDR"
     ) -> Sequence[tuple[str, Decimal]]:
