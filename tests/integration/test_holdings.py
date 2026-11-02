@@ -4,6 +4,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from reign.api.app import app
+from reign.services import notify as notify_module
 
 
 @pytest.fixture
@@ -119,3 +120,67 @@ async def test_holdings_pdf_report(client):
     assert r.headers["content-type"].startswith("application/pdf")
     assert "holdings_default" in r.headers["content-disposition"]
     assert r.content[:5] == b"%PDF-"
+
+
+@pytest.mark.asyncio
+async def test_push_vapid_key_unconfigured(client, monkeypatch):
+    monkeypatch.setattr("reign.api.routes.holdings.vapid_configured", lambda: False)
+    r = await client.get("/api/holdings/push/vapid-key")
+    assert r.status_code == 200
+    assert r.json()["configured"] is False
+
+
+@pytest.mark.asyncio
+async def test_push_subscribe_roundtrip(client):
+    sub = {
+        "endpoint": "https://push.example/abc123",
+        "p256dh": "cDI1NmRoLWtleQ",
+        "auth": "YXV0aC1rZXk",
+    }
+    r = await client.post("/api/holdings/push/subscribe", json=sub)
+    assert r.status_code == 200
+    r = await client.post("/api/holdings/push/unsubscribe", json=sub)
+    assert r.status_code == 200
+    assert r.json()["message"] == "Push subscription removed"
+
+
+@pytest.mark.asyncio
+async def test_push_noop_without_vapid(monkeypatch):
+    monkeypatch.setattr(notify_module.settings, "vapid_private_key", "")
+    monkeypatch.setattr(notify_module.settings, "vapid_public_key", "")
+    assert notify_module.vapid_configured() is False
+
+    class FakeSession:
+        async def execute(self, *_args, **_kwargs):
+            raise AssertionError("must not query DB without VAPID")
+
+    assert await notify_module.send_push_alerts(FakeSession(), "t", "b") == 0
+    assert notify_module.send_webpush("e", "p", "a", "t", "b") is False
+
+
+@pytest.mark.asyncio
+async def test_push_send_mocked(monkeypatch):
+    monkeypatch.setattr(notify_module.settings, "vapid_private_key", "priv")
+    monkeypatch.setattr(notify_module.settings, "vapid_public_key", "pub")
+    calls = []
+
+    class FakeSub:
+        endpoint = "https://push.example/x"
+        p256dh = "p"
+        auth = "a"
+
+    class FakeResult:
+        def scalars(self):
+            class S:
+                def all(self):
+                    return [FakeSub()]
+
+            return S()
+
+    class FakeSession:
+        async def execute(self, *_args, **_kwargs):
+            return FakeResult()
+
+    monkeypatch.setattr(notify_module, "send_webpush", lambda *a: calls.append(a) or True)
+    assert await notify_module.send_push_alerts(FakeSession(), "t", "b") == 1
+    assert calls

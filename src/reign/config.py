@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     alert_email_from: str = ""
     alert_email_to: str = ""
     alert_webhook_url: str = ""
+    vapid_private_key: str = ""
+    vapid_public_key: str = ""
+    vapid_subject: str = "mailto:reign@localhost"
 
 
 settings = Settings()

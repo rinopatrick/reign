@@ -87,3 +87,23 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(cacheFirst(event.request));
   }
 });
+
+self.addEventListener("push", (event) => {
+  let data = { title: "Reign", body: "" };
+  try {
+    if (event.data) data = { ...data, ...event.data.json() };
+  } catch {
+    data.body = event.data ? event.data.text() : "";
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || "Reign", {
+      body: data.body || "",
+      icon: "/static/icons/icon-192.svg",
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(self.clients.openWindow("/"));
+});

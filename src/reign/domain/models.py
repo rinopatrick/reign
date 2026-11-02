@@ -207,3 +207,15 @@ class PriceAlert(Base):
     at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     holding: Mapped[Holding] = relationship()
+
+
+class PushSubscription(Base):
+    """Web Push subscription for one browser (per-profile DB)."""
+
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    endpoint: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    p256dh: Mapped[str] = mapped_column(Text, nullable=False)
+    auth: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

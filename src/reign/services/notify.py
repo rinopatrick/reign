@@ -18,7 +18,19 @@ import urllib.parse
 import urllib.request
 from email.message import EmailMessage
 
+from sqlalchemy import select
+
 from reign.config import settings
+from reign.domain.models import PushSubscription
+
+try:
+    from pywebpush import WebPushException, webpush
+
+    WEBPUSH_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional dependency
+    WebPushException = Exception  # type: ignore[assignment,misc]
+    webpush = None  # type: ignore[assignment]
+    WEBPUSH_AVAILABLE = False
 
 logger = logging.getLogger("reign.notify")
 
@@ -99,3 +111,47 @@ def notify_alert_fired(
         "email": notify_email(title, body),
         "webhook": notify_webhook(title, body, extra),
     }
+
+
+def vapid_configured() -> bool:
+    return bool(
+        getattr(settings, "vapid_private_key", "") and getattr(settings, "vapid_public_key", "")
+    )
+
+
+def send_webpush(endpoint: str, p256dh: str, auth: str, title: str, body: str) -> bool:
+    """Send one Web Push message. Returns True on success. Never raises."""
+    if not vapid_configured() or not WEBPUSH_AVAILABLE or webpush is None:
+        if vapid_configured() and not WEBPUSH_AVAILABLE:
+            logger.warning("Web Push skipped: pywebpush not installed")
+        return False
+    try:
+        webpush(
+            subscription_info={"endpoint": endpoint, "keys": {"p256dh": p256dh, "auth": auth}},
+            data=json.dumps({"title": title, "body": body}),
+            vapid_private_key=getattr(settings, "vapid_private_key", ""),
+            vapid_claims={"sub": getattr(settings, "vapid_subject", "mailto:reign@localhost")},
+        )
+        return True
+    except WebPushException as e:
+        logger.warning("Web Push failed: %s", e)
+        return False
+    except Exception as e:  # pragma: no cover - defensive
+        logger.warning("Web Push failed: %s", e)
+        return False
+
+
+async def send_push_alerts(session, title: str, body: str) -> int:
+    """Send a push to every subscription in this profile. Returns sent count."""
+    if not vapid_configured():
+        return 0
+    try:
+        rows = (await session.execute(select(PushSubscription))).scalars().all()
+    except Exception as e:
+        logger.warning("Web Push skipped: %s", e)
+        return 0
+    sent = 0
+    for sub in rows:
+        if send_webpush(sub.endpoint, sub.p256dh, sub.auth, title, body):
+            sent += 1
+    return sent
