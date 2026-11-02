@@ -6,8 +6,8 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from reign.adapters.database import get_session
 from reign.adapters.repository import RecurringRepository
+from reign.api.routes.profiles import profile_session
 from reign.api.schemas import ForecastResponse, RecurringOut
 from reign.domain.period import Period
 
@@ -15,7 +15,7 @@ router = APIRouter()
 
 
 @router.get("", response_model=ForecastResponse)
-async def get_forecast(currency: str = "IDR", session: AsyncSession = Depends(get_session)):
+async def get_forecast(currency: str = "IDR", session: AsyncSession = Depends(profile_session)):
     rec_repo = RecurringRepository(session)
     now = datetime.now()
     current = Period.from_raw(now.year, now.month, currency)

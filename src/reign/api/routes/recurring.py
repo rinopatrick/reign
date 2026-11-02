@@ -3,8 +3,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from reign.adapters.database import get_session
 from reign.adapters.repository import AccountRepository, CategoryRepository, RecurringRepository
+from reign.api.routes.profiles import profile_session
 from reign.api.schemas import RecurringCreate, RecurringOut
 from reign.domain.models import RecurringTransaction
 from reign.exceptions import NotFoundError
@@ -13,14 +13,14 @@ router = APIRouter()
 
 
 @router.get("", response_model=list[RecurringOut])
-async def list_recurring(session: AsyncSession = Depends(get_session)):
+async def list_recurring(session: AsyncSession = Depends(profile_session)):
     repo = RecurringRepository(session)
     recs = await repo.list()
     return [RecurringOut.model_validate(r) for r in recs]
 
 
 @router.post("", response_model=RecurringOut, status_code=201)
-async def create_recurring(data: RecurringCreate, session: AsyncSession = Depends(get_session)):
+async def create_recurring(data: RecurringCreate, session: AsyncSession = Depends(profile_session)):
     try:
         await AccountRepository(session).get(data.account_id)
         if data.category_id is not None:
@@ -34,7 +34,7 @@ async def create_recurring(data: RecurringCreate, session: AsyncSession = Depend
 
 
 @router.delete("/{rec_id}")
-async def delete_recurring(rec_id: int, session: AsyncSession = Depends(get_session)):
+async def delete_recurring(rec_id: int, session: AsyncSession = Depends(profile_session)):
     repo = RecurringRepository(session)
     try:
         await repo.delete(rec_id)

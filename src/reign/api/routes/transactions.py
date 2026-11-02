@@ -11,13 +11,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from reign.adapters.database import get_session
 from reign.adapters.repository import (
     AccountRepository,
     CategoryRepository,
     TransactionListFilter,
     TransactionRepository,
 )
+from reign.api.routes.profiles import profile_session
 from reign.api.schemas import (
     BulkIds,
     BulkUpdate,
@@ -45,7 +45,7 @@ MAX_RECONCILE_TOLERANCE_DAYS = 30
 @router.get("", response_model=list[TransactionOut])
 async def list_transactions(
     params: TransactionListParams = Depends(),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(profile_session),
 ):
     repo = TransactionRepository(session)
     filters = TransactionListFilter(
@@ -63,7 +63,9 @@ async def list_transactions(
 
 
 @router.post("", response_model=TransactionOut, status_code=201)
-async def create_transaction(data: TransactionCreate, session: AsyncSession = Depends(get_session)):
+async def create_transaction(
+    data: TransactionCreate, session: AsyncSession = Depends(profile_session)
+):
     try:
         await AccountRepository(session).get(data.account_id)
     except NotFoundError as e:
@@ -84,7 +86,7 @@ async def create_transaction(data: TransactionCreate, session: AsyncSession = De
 
 
 @router.get("/{transaction_id}", response_model=TransactionOut)
-async def get_transaction(transaction_id: int, session: AsyncSession = Depends(get_session)):
+async def get_transaction(transaction_id: int, session: AsyncSession = Depends(profile_session)):
     result = await session.execute(
         select(Transaction)
         .options(
@@ -103,7 +105,7 @@ async def get_transaction(transaction_id: int, session: AsyncSession = Depends(g
 async def update_transaction(
     transaction_id: int,
     data: TransactionCreate,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(profile_session),
 ):
     try:
         await AccountRepository(session).get(data.account_id)
@@ -128,7 +130,7 @@ async def update_transaction(
 
 
 @router.post("/transfer", status_code=201)
-async def create_transfer(data: TransferCreate, session: AsyncSession = Depends(get_session)):
+async def create_transfer(data: TransferCreate, session: AsyncSession = Depends(profile_session)):
     """Create a transfer between two accounts."""
     if data.from_account_id == data.to_account_id:
         raise HTTPException(status_code=400, detail="Transfer accounts must differ")
@@ -165,7 +167,7 @@ async def create_transfer(data: TransferCreate, session: AsyncSession = Depends(
 
 
 @router.delete("/{transaction_id}")
-async def delete_transaction(transaction_id: int, session: AsyncSession = Depends(get_session)):
+async def delete_transaction(transaction_id: int, session: AsyncSession = Depends(profile_session)):
     repo = TransactionRepository(session)
     try:
         await repo.delete(transaction_id)
@@ -175,14 +177,14 @@ async def delete_transaction(transaction_id: int, session: AsyncSession = Depend
 
 
 @router.post("/bulk-delete")
-async def bulk_delete(data: BulkIds, session: AsyncSession = Depends(get_session)):
+async def bulk_delete(data: BulkIds, session: AsyncSession = Depends(profile_session)):
     repo = TransactionRepository(session)
     await repo.bulk_delete(data.ids)
     return {"message": f"Deleted {len(data.ids)} transactions"}
 
 
 @router.post("/bulk-reconcile")
-async def bulk_reconcile(data: BulkIds, session: AsyncSession = Depends(get_session)):
+async def bulk_reconcile(data: BulkIds, session: AsyncSession = Depends(profile_session)):
     repo = TransactionRepository(session)
     await repo.bulk_reconcile(data.ids)
     return {"message": f"Reconciled {len(data.ids)} transactions"}
@@ -195,7 +197,7 @@ async def reconcile_statement_upload(
     *,
     tolerance_days: int = 2,
     auto_mark: bool = False,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(profile_session),
 ):
     """Match an uploaded statement (CSV/OFX/QFX) against ledger transactions."""
     name = (file.filename or "").lower()
@@ -230,7 +232,7 @@ async def reconcile_statement_upload(
 
 
 @router.post("/bulk-update")
-async def bulk_update(data: BulkUpdate, session: AsyncSession = Depends(get_session)):
+async def bulk_update(data: BulkUpdate, session: AsyncSession = Depends(profile_session)):
     repo = TransactionRepository(session)
     if data.category_id is not None:
         try:
@@ -245,7 +247,7 @@ async def bulk_update(data: BulkUpdate, session: AsyncSession = Depends(get_sess
 async def import_csv(
     account_id: int,
     file: UploadFile = File(...),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(profile_session),
 ):
     """Upload a bank CSV and auto-import transactions."""
     if not file.filename or not file.filename.lower().endswith(".csv"):
@@ -298,7 +300,7 @@ def _build_transactions(parsed: list[dict], account_id: int) -> list[Transaction
 async def import_ofx(
     account_id: int,
     file: UploadFile = File(...),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(profile_session),
 ):
     """Upload an OFX/QFX bank file and auto-import transactions."""
     if not file.filename or not file.filename.lower().endswith((".ofx", ".qfx")):
@@ -366,7 +368,7 @@ async def export_csv(
     account_id: int | None = None,
     start_date: date_cls | None = None,
     end_date: date_cls | None = None,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(profile_session),
 ):
     """Export transactions as CSV."""
     repo = TransactionRepository(session)
@@ -414,7 +416,7 @@ async def export_json(
     account_id: int | None = None,
     start_date: date_cls | None = None,
     end_date: date_cls | None = None,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(profile_session),
 ):
     """Export transactions as JSON."""
     repo = TransactionRepository(session)

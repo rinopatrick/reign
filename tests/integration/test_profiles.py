@@ -63,6 +63,17 @@ async def test_backup_per_profile_isolated(client, tmp_path, monkeypatch):
 async def test_profile_header_isolation(client):
     r = await client.get("/api/accounts", headers={"X-Reign-Profile": "kantor"})
     assert r.status_code == 200
-    assert r.json() == []
+    kantor_before = r.json()
+    r = await client.post(
+        "/api/accounts",
+        json={"name": "Kantor Only", "type": "checking", "currency": "IDR", "initial_balance": 0},
+        headers={"X-Reign-Profile": "kantor"},
+    )
+    assert r.status_code == 201
+    r = await client.get("/api/accounts", headers={"X-Reign-Profile": "kantor"})
+    names_kantor = [a["name"] for a in r.json()]
+    assert "Kantor Only" in names_kantor
     r = await client.get("/api/accounts")
-    assert any(a["name"] == "Cash" for a in r.json())
+    names_default = [a["name"] for a in r.json()]
+    assert "Kantor Only" not in names_default
+    assert len(kantor_before) + 1 == len(names_kantor)

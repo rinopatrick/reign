@@ -8,8 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from reign.adapters.database import get_session
 from reign.adapters.repository import AccountRepository
+from reign.api.routes.profiles import profile_session
 from reign.domain.enums import Currency
 from reign.domain.models import Holding
 from reign.exceptions import NotFoundError
@@ -72,7 +72,7 @@ def _summarize(h: Holding) -> HoldingOut:
 
 @router.get("", response_model=list[HoldingOut])
 async def list_holdings(
-    account_id: int | None = None, session: AsyncSession = Depends(get_session)
+    account_id: int | None = None, session: AsyncSession = Depends(profile_session)
 ):
     stmt = select(Holding).options(selectinload(Holding.account)).order_by(Holding.symbol)
     if account_id is not None:
@@ -82,7 +82,7 @@ async def list_holdings(
 
 
 @router.post("", response_model=HoldingOut, status_code=201)
-async def create_holding(data: HoldingCreate, session: AsyncSession = Depends(get_session)):
+async def create_holding(data: HoldingCreate, session: AsyncSession = Depends(profile_session)):
     try:
         await AccountRepository(session).get(data.account_id)
     except NotFoundError as e:
@@ -97,7 +97,7 @@ async def create_holding(data: HoldingCreate, session: AsyncSession = Depends(ge
 
 @router.put("/{holding_id}", response_model=HoldingOut)
 async def update_holding(
-    holding_id: int, data: HoldingUpdate, session: AsyncSession = Depends(get_session)
+    holding_id: int, data: HoldingUpdate, session: AsyncSession = Depends(profile_session)
 ):
     h = await session.get(Holding, holding_id)
     if not h:
@@ -110,7 +110,7 @@ async def update_holding(
 
 
 @router.delete("/{holding_id}")
-async def delete_holding(holding_id: int, session: AsyncSession = Depends(get_session)):
+async def delete_holding(holding_id: int, session: AsyncSession = Depends(profile_session)):
     h = await session.get(Holding, holding_id)
     if not h:
         raise HTTPException(status_code=404, detail=f"Holding {holding_id} not found")

@@ -3,8 +3,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from reign.adapters.database import get_session
 from reign.adapters.repository import GoalRepository
+from reign.api.routes.profiles import profile_session
 from reign.api.schemas import GoalCreate, GoalOut
 from reign.domain.models import Goal
 from reign.exceptions import NotFoundError
@@ -13,20 +13,20 @@ router = APIRouter()
 
 
 @router.get("", response_model=list[GoalOut])
-async def list_goals(session: AsyncSession = Depends(get_session)):
+async def list_goals(session: AsyncSession = Depends(profile_session)):
     repo = GoalRepository(session)
     return await repo.list()
 
 
 @router.post("", response_model=GoalOut, status_code=201)
-async def create_goal(data: GoalCreate, session: AsyncSession = Depends(get_session)):
+async def create_goal(data: GoalCreate, session: AsyncSession = Depends(profile_session)):
     repo = GoalRepository(session)
     goal = Goal(**data.model_dump())
     return await repo.create(goal)
 
 
 @router.delete("/{goal_id}")
-async def delete_goal(goal_id: int, session: AsyncSession = Depends(get_session)):
+async def delete_goal(goal_id: int, session: AsyncSession = Depends(profile_session)):
     repo = GoalRepository(session)
     try:
         await repo.delete(goal_id)
