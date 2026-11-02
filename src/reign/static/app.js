@@ -1102,6 +1102,8 @@ async function renderInvest(container) {
         <input name="units" type="number" step="any" placeholder="Units" class="w-28 border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm" required>
         <input name="cost_basis" type="number" step="any" placeholder="Avg cost" class="w-32 border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm" required>
         <input name="current_price" type="number" step="any" placeholder="Price now" class="w-32 border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm" required>
+        <input name="alert_above" type="number" step="any" placeholder="Alert >= (opsional)" class="w-36 border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm">
+        <input name="alert_below" type="number" step="any" placeholder="Alert <= (opsional)" class="w-36 border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm">
         <select name="account_id" class="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm">
           ${accounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('')}
         </select>
@@ -1120,7 +1122,7 @@ async function renderInvest(container) {
               <td class="px-4 py-3 text-right dark:text-gray-300">${h.units}</td>
               <td class="px-4 py-3 text-right dark:text-gray-300">${formatMoney(h.cost_basis, h.currency)}</td>
               <td class="px-4 py-3 text-right dark:text-gray-300">${formatMoney(h.current_price, h.currency)}</td>
-              <td class="px-4 py-3"><canvas class="sparkline" data-holding="${h.id}" width="100" height="28"></canvas></td>
+              <td class="px-4 py-3"><canvas class="sparkline" data-holding="${h.id}" width="100" height="28"></canvas>${h.alert ? `<div class="text-xs font-semibold text-amber-600 mt-1">${escapeHtml(h.alert)}</div>` : ''}</td>
               <td class="px-4 py-3 text-right font-medium dark:text-gray-200">${formatMoney(h.value, h.currency)}</td>
               <td class="px-4 py-3 text-right font-medium ${Number(h.pnl) >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${formatMoney(h.pnl, h.currency)}</td>
               <td class="px-4 py-3 text-right flex items-center justify-end gap-2">
@@ -1145,6 +1147,8 @@ async function createHolding(e) {
     current_price: parseFloat(fd.get('current_price')),
     account_id: parseInt(fd.get('account_id')),
     currency: 'IDR',
+    alert_above: fd.get('alert_above') ? parseFloat(fd.get('alert_above')) : null,
+    alert_below: fd.get('alert_below') ? parseFloat(fd.get('alert_below')) : null,
   });
   renderView('invest');
 }

@@ -34,6 +34,8 @@ class HoldingCreate(BaseModel):
     current_price: Decimal = Decimal("0")
     currency: str = "IDR"
     account_id: int
+    alert_above: Decimal | None = None
+    alert_below: Decimal | None = None
 
     _v_currency = field_validator("currency", mode="before")(_norm_currency)
 
@@ -42,6 +44,7 @@ class HoldingOut(HoldingCreate):
     id: int
     value: Decimal
     pnl: Decimal
+    alert: str | None = None
 
 
 class HoldingUpdate(BaseModel):
@@ -50,6 +53,8 @@ class HoldingUpdate(BaseModel):
     cost_basis: Decimal | None = None
     current_price: Decimal | None = None
     currency: str | None = None
+    alert_above: Decimal | None = None
+    alert_below: Decimal | None = None
 
     _v_currency = field_validator("currency", mode="before")(_norm_currency_optional)
 
@@ -57,6 +62,12 @@ class HoldingUpdate(BaseModel):
 def _summarize(h: Holding) -> HoldingOut:
     value = (h.units or Decimal("0")) * (h.current_price or Decimal("0"))
     pnl = value - (h.units or Decimal("0")) * (h.cost_basis or Decimal("0"))
+    alert = None
+    price = h.current_price or Decimal("0")
+    if h.alert_above is not None and price >= h.alert_above:
+        alert = f"Target atas tercapai: {price} >= {h.alert_above}"
+    elif h.alert_below is not None and price <= h.alert_below:
+        alert = f"Target bawah tercapai: {price} <= {h.alert_below}"
     return HoldingOut(
         id=h.id,
         symbol=h.symbol,
@@ -66,8 +77,11 @@ def _summarize(h: Holding) -> HoldingOut:
         current_price=h.current_price,
         currency=h.currency,
         account_id=h.account_id,
+        alert_above=h.alert_above,
+        alert_below=h.alert_below,
         value=value,
         pnl=pnl,
+        alert=alert,
     )
 
 

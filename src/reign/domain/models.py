@@ -171,6 +171,8 @@ class Holding(Base):
 
     account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"), nullable=False)
     account: Mapped[Account] = relationship()
+    alert_above: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    alert_below: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     prices: Mapped[list["PricePoint"]] = relationship(
         back_populates="holding", cascade="all, delete-orphan", order_by="PricePoint.at"
     )
