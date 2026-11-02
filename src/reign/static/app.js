@@ -1279,6 +1279,31 @@ async function markAllAlertsRead() {
 
 const ALLOC_COLORS = ['#2563eb','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#14b8a6'];
 
+async function drillSankey(categoryId, name) {
+  const el = document.getElementById('sankey-detail');
+  if (!el) return;
+  try {
+    const now = new Date();
+    const start = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+    const end = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-31`;
+    const txs = await apiGet(`/api/transactions?category_id=${categoryId}&start_date=${start}&end_date=${end}&limit=50`);
+    el.innerHTML = `
+      <div class="border-t dark:border-gray-700 pt-3">
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-xs font-semibold dark:text-gray-200">${escapeHtml(name)} — ${txs.length} transaksi bulan ini</p>
+          <button class="text-xs text-gray-500 hover:underline" onclick="document.getElementById('sankey-detail').innerHTML='';">Tutup</button>
+        </div>
+        ${txs.length ? txs.map(t => `
+          <div class="flex items-center justify-between py-1 border-b dark:border-gray-700 last:border-0">
+            <span class="text-xs dark:text-gray-300">${escapeHtml(t.description)} · ${escapeHtml(t.date || '')}</span>
+            <span class="text-xs font-medium tabular-nums ${Number(t.amount) >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${formatMoney(t.amount)}</span>
+          </div>`).join('') : '<p class="text-xs text-gray-400">Tidak ada transaksi.</p>'}
+      </div>`;
+  } catch {
+    el.innerHTML = '<p class="text-xs text-gray-400">Drill-down gagal dimuat.</p>';
+  }
+}
+
 async function downloadSankeyPdf() {
   const now = new Date();
   const r = await apiFetch(`/api/reports/sankey/pdf?year=${now.getFullYear()}&month=${now.getMonth()+1}`);
@@ -1316,12 +1341,14 @@ async function renderSankey() {
       <div class="min-w-[320px]">
         <p class="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mb-2">Pemasukan ${formatMoney(d.total_in)}</p>
         ${outs.map(l => {
-          const name = l.target.slice(4);
+          const name = l.category || l.target.slice(4);
           const pct = Math.max((Number(l.value) / total) * 100, 1.5);
-          return row(name, l.value, '#f43f5e', pct.toFixed(1));
+          const drill = l.category_id ? ` <button class="text-blue-600 hover:underline" onclick="drillSankey(${l.category_id}, '${escapeHtml(name).replace(/'/g, "&#39;")}')">Lihat</button>` : '';
+          return row(name + drill, l.value, '#f43f5e', pct.toFixed(1));
         }).join('')}
         ${saved ? row('Sisa', saved.value, '#10b981', Math.max((Number(saved.value) / total) * 100, 1.5).toFixed(1)) : ''}
-      </div>`;
+      </div>
+      <div id="sankey-detail" class="mt-3"></div>`;
   } catch {
     el.innerHTML = '<p class="text-sm text-gray-400">Sankey gagal dimuat.</p>';
   }

@@ -134,3 +134,16 @@ async def test_sankey_pdf_readable(client):
     assert r.headers["content-type"].startswith("application/pdf")
     text = PdfReader(io.BytesIO(r.content)).pages[0].extract_text()
     assert "Pemasukan" in text
+
+
+@pytest.mark.asyncio
+async def test_sankey_links_carry_drilldown_ids(client):
+    r = await client.get("/api/reports/sankey")
+    assert r.status_code == 200
+    data = r.json()
+    for link in data["links"]:
+        if link["target"].startswith("out:"):
+            assert link.get("category_id") is not None
+            assert link.get("category") == link["target"][4:]
+            tx = await client.get(f"/api/transactions?category_id={link['category_id']}&limit=5")
+            assert tx.status_code == 200
