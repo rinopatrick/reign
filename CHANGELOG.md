@@ -1,5 +1,14 @@
 # Changelog — Reign
 
+## v0.6.0 — Harga pasar otomatis + peringatan + sinkron profil (2026-11-02)
+
+- Harga pasar otomatis Yahoo Finance: mapping BBCA->BBCA.JK, refresh per-holding + semua, lookup (PR #56)
+- Isolasi profil di semua route + bukti tulis-baca lintas profil (PR #55)
+- Riwayat harga append-only + scheduler harian + sparkline + endpoint history (PR #60)
+- Alert target naik/turun + badge UI + SCHEMA_VERSION 5 (PR #61)
+- Sinkronisasi profil: export per-profil, clone antar-profil, auto-init DB (PR #57)
+- Suite: 88 passed, coverage 85 persen, ruff bersih, JS valid
+
 ## v0.5.0 — Investments, more banks, per-profile backup/PDF, desktop tests (2026-11-02)
 
 - Investment holdings + valuation + UI (PR #50) — menutup roadmap Investment/Stock tracking
