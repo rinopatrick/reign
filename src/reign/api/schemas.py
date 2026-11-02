@@ -209,6 +209,33 @@ class CSVImportResponse(BaseModel):
     message: str
 
 
+class ReconcileMatch(BaseModel):
+    index: int
+    transaction_id: int
+    description: str
+    score: float
+    date_gap_days: int
+
+
+class ReconcileUnmatched(BaseModel):
+    index: int
+    row: dict
+    reason: str
+
+
+class ReconcileTotals(BaseModel):
+    statement_rows: int
+    matched: int
+    unmatched: int
+
+
+class ReconcileResult(BaseModel):
+    matched: list[ReconcileMatch]
+    unmatched: list[ReconcileUnmatched]
+    marked_reconciled: int
+    totals: ReconcileTotals
+
+
 class TransactionListParams(BaseModel):
     """GET /api/transactions filter bundle (keeps route signature small)."""
 
