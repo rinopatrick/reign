@@ -1,7 +1,12 @@
 const API = '';
+let activeProfile = localStorage.getItem('reign_profile') || 'default';
+
+function profileHeaders(extra = {}) {
+  return activeProfile === 'default' ? extra : { ...extra, 'X-Reign-Profile': activeProfile };
+}
 
 async function apiGet(path) {
-  const r = await fetch(API + path);
+  const r = await fetch(API + path, { headers: profileHeaders() });
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
@@ -9,7 +14,7 @@ async function apiGet(path) {
 async function apiPost(path, body) {
   const r = await fetch(API + path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: profileHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
   });
   if (!r.ok) throw new Error(await r.text());
@@ -17,9 +22,14 @@ async function apiPost(path, body) {
 }
 
 async function apiDelete(path) {
-  const r = await fetch(API + path, { method: 'DELETE' });
+  const r = await fetch(API + path, { method: 'DELETE', headers: profileHeaders() });
   if (!r.ok) throw new Error(await r.text());
   return r.json();
+}
+
+function apiFetch(path, init = {}) {
+  const headers = profileHeaders(init.headers || {});
+  return fetch(API + path, { ...init, headers });
 }
 
 function formatMoney(value, currency = 'IDR') {
@@ -478,7 +488,7 @@ async function reconcileStatement(input) {
   const form = new FormData();
   form.append('file', file);
   const q = new URLSearchParams({ account_id: accountId, tolerance_days: '2', auto_mark: autoMark });
-  const r = await fetch(API + '/api/transactions/reconcile-statement?' + q.toString(), { method: 'POST', body: form });
+  const r = await apiFetch('/api/transactions/reconcile-statement?' + q.toString(), { method: 'POST', body: form });
   const result = await r.json();
   const status = document.getElementById('import-status');
   if (!r.ok) {
@@ -639,7 +649,7 @@ async function saveTransaction(e) {
   };
 
   if (editingTxId) {
-    await fetch(API + `/api/transactions/${editingTxId}`, {
+    await apiFetch(`/api/transactions/${editingTxId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -1317,7 +1327,7 @@ async function importCSV(input) {
   // Preview first
   const previewForm = new FormData();
   previewForm.append('file', file);
-  const pr = await fetch(API + '/api/transactions/import-preview', { method: 'POST', body: previewForm });
+  const pr = await apiFetch('/api/transactions/import-preview', { method: 'POST', body: previewForm });
   const preview = await pr.json();
   if (!pr.ok) {
     alert('CSV parse error: ' + (preview.detail || 'Unknown'));
@@ -1341,7 +1351,7 @@ async function importCSV(input) {
 
   const form = new FormData();
   form.append('file', file);
-  const r = await fetch(API + `/api/transactions/import?account_id=${accountId}`, { method: 'POST', body: form });
+  const r = await apiFetch(`/api/transactions/import?account_id=${accountId}`, { method: 'POST', body: form });
   const result = await r.json();
   const status = document.getElementById('import-status');
   if (r.ok) {
@@ -1364,7 +1374,7 @@ function exportTransactions(format) {
 async function generateReport() {
   const now = new Date();
   const url = `/api/reports/monthly?year=${now.getFullYear()}&month=${now.getMonth()+1}&currency=IDR`;
-  const r = await fetch(API + url);
+  const r = await apiFetch(url);
   if (!r.ok) { alert('Failed to generate report'); return; }
   const blob = await r.blob();
   const a = document.createElement('a');
@@ -1435,7 +1445,7 @@ async function renderSettings(container) {
 
 async function toggleAutoBackup() {
   const enabled = document.getElementById('auto-backup-toggle').checked;
-  await fetch(API + '/api/settings/auto_backup_enabled', {
+  await apiFetch('/api/settings/auto_backup_enabled', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ value: enabled ? 'true' : 'false' }),
@@ -1444,7 +1454,7 @@ async function toggleAutoBackup() {
 
 async function changeBackupInterval() {
   const interval = document.getElementById('backup-interval').value;
-  await fetch(API + '/api/settings/auto_backup_interval_days', {
+  await apiFetch('/api/settings/auto_backup_interval_days', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ value: interval }),
@@ -1456,7 +1466,7 @@ async function triggerBackupNow() {
   btn.disabled = true;
   btn.innerHTML = 'Backing up...';
   try {
-    const r = await fetch(API + '/api/backup/trigger', { method: 'POST' });
+    const r = await apiFetch('/api/backup/trigger', { method: 'POST' });
     const result = await r.json();
     alert(result.message);
     renderView('settings');
@@ -1469,7 +1479,7 @@ async function triggerBackupNow() {
 
 // ============== BACKUP ==============
 async function exportBackup() {
-  const r = await fetch(API + '/api/backup');
+  const r = await apiFetch('/api/backup');
   if (!r.ok) { alert('Backup failed'); return; }
   const blob = await r.blob();
   const a = document.createElement('a');
@@ -1484,7 +1494,7 @@ async function importBackup(input) {
   if (!confirm('This will REPLACE all current data. Continue?')) return;
   const form = new FormData();
   form.append('file', file);
-  const r = await fetch(API + '/api/restore', { method: 'POST', body: form });
+  const r = await apiFetch('/api/restore', { method: 'POST', body: form });
   const result = await r.json();
   if (r.ok) {
     alert('Restore complete: ' + result.message);
@@ -1498,7 +1508,37 @@ async function importBackup(input) {
 document.getElementById('current-date').textContent = new Date().toLocaleDateString('en-US', {
   weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
 });
+refreshProfileSelect();
 navigate('dashboard');
+
+// ============== PROFILES ==============
+async function refreshProfileSelect() {
+  const sel = document.getElementById('profile-select');
+  if (!sel) return;
+  let profiles = ['default'];
+  try {
+    profiles = await apiGet('/api/profiles');
+  } catch { /* offline: keep default */ }
+  if (!profiles.includes(activeProfile)) profiles.push(activeProfile);
+  sel.innerHTML = profiles.map(p => `<option value="${escapeHtml(p)}" ${p === activeProfile ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('');
+}
+
+async function switchProfile(slug) {
+  const name = (slug || 'default').trim().toLowerCase();
+  if (!name) return;
+  if (name !== 'default') {
+    const r = await fetch(API + '/api/profiles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug: name }),
+    });
+    if (!r.ok) { alert('Profil tidak valid'); refreshProfileSelect(); return; }
+  }
+  activeProfile = name;
+  localStorage.setItem('reign_profile', name);
+  refreshProfileSelect();
+  renderView(currentView);
+}
 
 // PWA: register service worker (offline shell). No-op when unsupported.
 if ('serviceWorker' in navigator) {
