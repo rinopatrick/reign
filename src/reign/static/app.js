@@ -1499,3 +1499,10 @@ document.getElementById('current-date').textContent = new Date().toLocaleDateStr
   weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
 });
 navigate('dashboard');
+
+// PWA: register service worker (offline shell). No-op when unsupported.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+  });
+}
