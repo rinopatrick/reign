@@ -118,6 +118,113 @@ def _parse_blu(rows: list[dict]) -> list[dict]:
     return _parse_bri_bni(rows, "%d/%m/%Y")
 
 
+def _detect_seabank(header: list[str]) -> bool:
+    # SeaBank export: Tanggal + Keterangan/Description + Debit/Kredit (+ optional
+    # No. Transaksi / Transaction No column). Marker keeps BRI/BNI from matching.
+    has_date = "Tanggal" in header
+    has_desc = any(k in ("Keterangan", "Description", "Uraian") for k in header)
+    has_dr_cr = "Debit" in header and "Kredit" in header
+    has_ref = any(
+        k in header
+        for k in ("No Transaksi", "No. Transaksi", "Transaction No", "Transaction ID", "Ref")
+    )
+    return has_date and has_desc and has_dr_cr and has_ref and "Tanggal Transaksi" not in header
+
+
+def _parse_seabank(rows: list[dict]) -> list[dict]:
+    return _parse_bri_bni(rows, "%d/%m/%Y")
+
+
+def _detect_cimb(header: list[str]) -> bool:
+    # CIMB Niaga (OCTO/BizChannel) export: English headers with Reference number.
+    has_date = "Transaction Date" in header or "Value Date" in header
+    has_desc = any(k in ("Description", "Transaction Description", "Details") for k in header)
+    has_dr_cr = "Debit" in header and "Credit" in header
+    has_ref = any(k in header for k in ("Reference", "Ref No", "Reference No", "Cheque"))
+    return has_date and has_desc and has_dr_cr and has_ref
+
+
+def _parse_cimb(rows: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    for row in rows:
+        date_str = row.get("Transaction Date", "") or row.get("Value Date", "")
+        date_str = date_str.strip()
+        desc = next(
+            (
+                row.get(k, "").strip()
+                for k in ("Description", "Transaction Description", "Details")
+                if k in row
+            ),
+            "",
+        )
+        debit = _clean_idr_amount(row.get("Debit", ""))
+        credit = _clean_idr_amount(row.get("Credit", ""))
+        if not date_str:
+            continue
+        dt = _parse_flexible_date(date_str)
+        if not dt:
+            continue
+        if debit:
+            amount = -Decimal(debit)
+        elif credit:
+            amount = Decimal(credit)
+        else:
+            continue
+        out.append(
+            {
+                "date": dt.date().isoformat(),
+                "description": desc,
+                "amount": amount,
+                "currency": "IDR",
+            }
+        )
+    return out
+
+
+def _detect_danamon(header: list[str]) -> bool:
+    # Danamon export: Tanggal Transaksi/Tanggal + Keterangan + Debet/Kredit
+    # (Indonesian spelling) and/or Cabang column. "Debet" distinguishes Mandiri.
+    has_date = any(k in ("Tanggal Transaksi", "Tanggal") for k in header)
+    has_desc = any(k in ("Keterangan", "Uraian", "Description") for k in header)
+    has_dr_cr = ("Debet" in header and "Kredit" in header) or (
+        "Debit" in header and "Cabang" in header
+    )
+    return has_date and has_desc and has_dr_cr
+
+
+def _parse_danamon(rows: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    for row in rows:
+        date_str = row.get("Tanggal Transaksi", "") or row.get("Tanggal", "")
+        date_str = date_str.strip()
+        desc = next(
+            (row.get(k, "").strip() for k in ("Keterangan", "Uraian", "Description") if k in row),
+            "",
+        )
+        debit = _clean_idr_amount(row.get("Debet", "") or row.get("Debit", ""))
+        credit = _clean_idr_amount(row.get("Kredit", "") or row.get("Credit", ""))
+        if not date_str:
+            continue
+        dt = _parse_flexible_date(date_str)
+        if not dt:
+            continue
+        if debit:
+            amount = -Decimal(debit)
+        elif credit:
+            amount = Decimal(credit)
+        else:
+            continue
+        out.append(
+            {
+                "date": dt.date().isoformat(),
+                "description": desc,
+                "amount": amount,
+                "currency": "IDR",
+            }
+        )
+    return out
+
+
 def _detect_jago(header: list[str]) -> bool:
     # Bank Jago pocket export: Tanggal + a Jago-specific marker (Detail/Mutasi/
     # Nominal/Jumlah). The marker requirement keeps BNI/BRI headers from matching.
@@ -219,7 +326,7 @@ def _clean_decimal(raw: str) -> Decimal:
 
 
 def _detect_mandiri(header: list[str]) -> bool:
-    return "Tanggal Transaksi" in header or ("Debit" in header and "Credit" in header)
+    return "Tanggal Transaksi" in header and "Description" in header and "Debit" in header
 
 
 def _parse_mandiri(rows: list[dict]) -> list[dict]:
@@ -394,6 +501,9 @@ BANK_FORMATS: list[tuple[str, Callable, Callable]] = [
     ("jenius", _detect_jenius, _parse_jenius),
     ("blu", _detect_blu, _parse_blu),
     ("jago", _detect_jago, _parse_jago),
+    ("seabank", _detect_seabank, _parse_seabank),
+    ("cimb", _detect_cimb, _parse_cimb),
+    ("danamon", _detect_danamon, _parse_danamon),
     ("bri", _detect_bri, _parse_bri),
     ("generic", _detect_generic, _parse_generic),
 ]
