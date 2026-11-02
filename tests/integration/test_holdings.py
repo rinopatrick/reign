@@ -255,3 +255,20 @@ async def test_unread_alert_count_flow(client, monkeypatch):
     assert r.status_code == 200
     r = await client.get("/api/holdings/alerts/list?unread_only=true")
     assert all(a["id"] != aid for a in r.json())
+
+
+@pytest.mark.asyncio
+async def test_vapid_rotate_drops_stale_subscriptions(client):
+    sub = {
+        "endpoint": "https://push.example/rotate1",
+        "p256dh": "cDI1NmRoLWtleQ",
+        "auth": "YXV0aC1rZXk",
+    }
+    r = await client.post("/api/holdings/push/subscribe", json=sub)
+    assert r.status_code == 200
+    r = await client.post("/api/settings/vapid/rotate")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["dropped_subscriptions"] >= 1
+    assert data["public_key"] and data["private_key"]
+    assert "Re-subscribe" in data["env_hint"]

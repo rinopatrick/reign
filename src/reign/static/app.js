@@ -1695,6 +1695,7 @@ async function renderSettings(container) {
           <p class="text-sm font-medium dark:text-gray-200">Web Push (VAPID)</p>
           <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">Generate sekali, simpan kedua kunci ke env server lalu restart. Private key hanya tampil sekali.</p>
           <button onclick="generateVapid()" class="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800">Generate VAPID keys</button>
+          <button onclick="rotateVapid()" class="px-4 py-2 border dark:border-gray-600 dark:text-gray-200 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Rotate keys</button>
           <pre id="vapid-output" class="hidden mt-2 text-xs bg-gray-100 dark:bg-gray-700 dark:text-gray-200 rounded-lg p-3 whitespace-pre-wrap break-all"></pre>
         </div>
         <div>
@@ -1747,6 +1748,19 @@ async function changeBackupInterval() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ value: interval }),
   });
+}
+
+async function rotateVapid() {
+  if (!confirm('Rotate VAPID keys? Semua subscription push profil ini dihapus dan browser harus subscribe ulang.')) return;
+  const el = document.getElementById('vapid-output');
+  try {
+    const r = await apiPost('/api/settings/vapid/rotate', {});
+    const d = await r.json();
+    el.classList.remove('hidden');
+    el.textContent = `VAPID_PUBLIC_KEY=${d.public_key}\nVAPID_PRIVATE_KEY=${d.private_key}\n\n${d.env_hint} (${d.dropped_subscriptions} subscription dihapus). Private key hanya tampil sekali — simpan sekarang!`;
+  } catch (e) {
+    alert('Rotate VAPID gagal: ' + e.message);
+  }
 }
 
 async function generateVapid() {

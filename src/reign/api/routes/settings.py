@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from reign.api.routes.profiles import profile_session
-from reign.domain.models import AppSetting
+from reign.domain.models import AppSetting, PushSubscription
 from reign.services.notify import generate_vapid_keys
 from reign.services.settings import get_setting, set_setting
 
@@ -36,6 +36,22 @@ async def generate_vapid():
         "public_key": public_key,
         "private_key": private_key,
         "env_hint": "Set VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY, then restart.",
+    }
+
+
+@router.post("/vapid/rotate")
+async def rotate_vapid(session: AsyncSession = Depends(profile_session)):
+    """Rotate VAPID keys: new pair + drop stale subscriptions bound to the old key."""
+    public_key, private_key = generate_vapid_keys()
+    dropped = (await session.execute(select(PushSubscription))).scalars().all()
+    for sub in dropped:
+        await session.delete(sub)
+    await session.commit()
+    return {
+        "public_key": public_key,
+        "private_key": private_key,
+        "dropped_subscriptions": len(dropped),
+        "env_hint": "Set VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY, then restart. Re-subscribe browsers.",
     }
 
 
