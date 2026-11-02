@@ -95,7 +95,18 @@ function updateDarkModeIcons(isDark) {
     document.documentElement.classList.add('dark');
     updateDarkModeIcons(true);
   }
+  const savedContrast = localStorage.getItem('contrast');
+  const prefersContrast = window.matchMedia('(prefers-contrast: more)').matches;
+  if (savedContrast === 'high' || (!savedContrast && prefersContrast)) {
+    document.documentElement.classList.add('high-contrast');
+  }
 })();
+
+function toggleContrast() {
+  const html = document.documentElement;
+  const high = html.classList.toggle('high-contrast');
+  localStorage.setItem('contrast', high ? 'high' : 'normal');
+}
 
 // Navigation
 let currentView = 'dashboard';
