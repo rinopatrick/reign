@@ -1612,6 +1612,13 @@ async function renderSettings(container) {
             <button onclick="cloneProfile()" class="flex-1 flex items-center justify-center gap-2 px-4 py-2 border dark:border-gray-600 dark:text-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition">Salin profil aktif</button>
           </div>
           <p class="text-xs text-gray-400 dark:text-gray-500">Backups are saved to <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">backups/</code> in the app folder. Maximum ${10} auto-backups are kept.</p>
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs text-gray-500 dark:text-gray-400">Riwayat arsip profil ini</span>
+            <button onclick="loadBackupHistory()" class="text-xs text-blue-600 hover:underline">Muat ulang</button>
+          </div>
+          <ul id="backup-history" class="text-xs text-gray-500 dark:text-gray-400 space-y-1"><li>Belum dimuat.</li></ul>
+        </div>
         </div>
       </div>
 
@@ -1646,6 +1653,17 @@ async function changeBackupInterval() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ value: interval }),
   });
+}
+
+async function loadBackupHistory() {
+  const el = document.getElementById('backup-history');
+  if (!el) return;
+  try {
+    const items = await apiGet('/api/backup/history?limit=20');
+    el.innerHTML = items.length ? items.map(f => `<li>${escapeHtml(f.name)} <span class="text-gray-400">(${(f.size / 1024).toFixed(1)} KB)</span></li>`).join('') : '<li>Belum ada arsip.</li>';
+  } catch {
+    el.innerHTML = '<li>Gagal memuat arsip.</li>';
+  }
 }
 
 async function triggerBackupNow() {
