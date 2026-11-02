@@ -33,9 +33,17 @@ from reign.adapters.repository import (
 from reign.api.routes.holdings import _fire_alert_if_hit
 from reign.api.routes.profiles import _profiles_root
 from reign.config import settings
-from reign.domain.models import Budget, Holding, PricePoint, RecurringTransaction, TransactionSplit
+from reign.domain.models import (
+    Budget,
+    Holding,
+    PriceAlert,
+    PricePoint,
+    RecurringTransaction,
+    TransactionSplit,
+)
 from reign.exceptions import ProfileError
 from reign.services.market import fetch_price
+from reign.services.notify import notify_email, notify_webhook, send_push_alerts
 from reign.services.restore import restore_counts, run_restore, validate_backup_shape
 from reign.services.settings import get_setting as _get_setting, set_setting as _set_setting
 from reign.services.uploads import read_limited_upload
@@ -209,6 +217,52 @@ async def do_auto_backup(profile: str = "default") -> str | None:
     return str(filepath)
 
 
+async def build_digest(session, slug: str) -> tuple[str, str]:
+    """Daily digest title+body for a profile: month-to-date + unread alerts + top category."""
+    now = datetime.now()
+    tx_repo = TransactionRepository(session)
+    summary = await tx_repo.get_summary(now.year, now.month)
+    unread = (
+        (await session.execute(select(PriceAlert).where(PriceAlert.is_read.is_(False)).limit(100)))
+        .scalars()
+        .all()
+    )
+    cats = await tx_repo.get_category_totals(now.year, now.month)
+    top = max(cats, key=lambda c: abs(c[1]), default=None)
+    title = f"Reign digest {slug} {now.strftime('%Y-%m-%d')}"
+    lines = [
+        f"Pemasukan bulan ini: {summary['income']}",
+        f"Pengeluaran bulan ini: {abs(summary['expense'])}",
+        f"Bersih: {summary['net']}",
+        f"Alert belum dibaca: {len(unread)}",
+    ]
+    if top:
+        lines.append(f"Kategori terbesar: {top[0]} ({abs(top[1])})")
+    return title, "\n".join(lines)
+
+
+async def run_digest_cycle(slug: str) -> bool:
+    """One digest pass: skip when disabled or already sent today. Returns sent flag."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    try:
+        await init_db(slug)
+    except Exception as e:
+        logger.warning("Digest skipped for profile %s: %s", slug, e)
+        return False
+    async with get_session_factory(slug)() as session:
+        if (await _get_setting(session, "digest_enabled", "false")).lower() != "true":
+            return False
+        if (await _get_setting(session, "digest_last_run", "")) == today:
+            return False
+        title, body = await build_digest(session, slug)
+        notify_email(title, body)
+        notify_webhook(title, body, {"profile": slug, "kind": "digest"})
+        await send_push_alerts(session, title, body)
+        await _set_setting(session, "digest_last_run", today)
+    logger.info("Digest sent for profile %s", slug)
+    return True
+
+
 async def run_backup_cycle(slug: str) -> str | None:
     """One scheduler pass for a profile: skip when disabled, not due, or already archived today."""
     today = datetime.now().strftime("%Y-%m-%d")
@@ -251,6 +305,10 @@ async def backup_scheduler():
                     continue
                 if filepath:
                     logger.info("Auto-backup saved: %s", filepath)
+                try:
+                    await run_digest_cycle(slug)
+                except Exception as e:
+                    logger.warning("Digest skipped for profile %s: %s", slug, e)
         except Exception as e:
             logger.exception("Backup error: %s", e)
         await asyncio.sleep(3600)

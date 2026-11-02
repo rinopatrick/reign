@@ -120,3 +120,23 @@ async def test_gzip_backup_roundtrip(client, tmp_path, monkeypatch):
     )
     assert r.status_code == 200
     assert r.json()["message"] == "Restore complete"
+
+
+@pytest.mark.asyncio
+async def test_digest_cycle_off_by_default(client, tmp_path, monkeypatch):
+    monkeypatch.setenv("REIGN_DATA_DIR", str(tmp_path))
+    assert await backup_module.run_digest_cycle("digest-off-1") is False
+
+
+@pytest.mark.asyncio
+async def test_digest_cycle_sends_then_skips_same_day(client, tmp_path, monkeypatch):
+    monkeypatch.setenv("REIGN_DATA_DIR", str(tmp_path))
+    slug = "digest1"
+    await init_db(slug)
+    async with get_session_factory(slug)() as s:
+        await set_setting(s, "digest_enabled", "true")
+    assert await backup_module.run_digest_cycle(slug) is True
+    assert await backup_module.run_digest_cycle(slug) is False
+    r = await client.get("/api/settings/digest_last_run", headers={"X-Reign-Profile": slug})
+    assert r.status_code == 200
+    assert r.json()["value"] != ""
