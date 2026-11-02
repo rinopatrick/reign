@@ -1,5 +1,13 @@
 # Changelog — Reign
 
+## v0.5.0 — Investments, more banks, per-profile backup/PDF, desktop tests (2026-11-02)
+
+- Investment holdings + valuation + UI (PR #50) — menutup roadmap Investment/Stock tracking
+- Parser SeaBank + CIMB Niaga + Danamon + 3 unit tests (PR #51)
+- Backup/restore/trigger + PDF report per profil + auto-init DB profil (PR #52)
+- Desktop helpers teruji: resolve_port, wait_for_server, _spawn_server + 6 unit tests (PR #53)
+- Coverage naik, suite hijau
+
 ## v0.4.0 — Bank coverage + reconciliation + PWA + profiles (2026-11-02)
 
 - Parser BRI + BNI (disambiguasi gaya tanggal) dan Blu + Jago (marker khas, CR/DB + signed amount) — PR #41, #44
