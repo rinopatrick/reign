@@ -299,6 +299,37 @@ async def unread_alert_count(session: AsyncSession = Depends(profile_session)):
     return {"unread": int(n)}
 
 
+class AllocationSlice(BaseModel):
+    symbol: str
+    value: Decimal
+    weight: float
+
+
+class AllocationResponse(BaseModel):
+    total: Decimal
+    slices: list[AllocationSlice]
+
+
+@router.get("/allocation", response_model=AllocationResponse)
+async def allocation(session: AsyncSession = Depends(profile_session)):
+    """Portfolio allocation by symbol (weights sum to 1 when total > 0)."""
+    rows = (await session.execute(select(Holding))).scalars().all()
+    items = []
+    for h in rows:
+        value = (h.units or Decimal("0")) * (h.current_price or Decimal("0"))
+        items.append((h.symbol, value))
+    total = sum((v for _, v in items), Decimal("0"))
+    slices = [
+        AllocationSlice(
+            symbol=s,
+            value=v,
+            weight=float(v / total) if total > 0 else 0.0,
+        )
+        for s, v in sorted(items, key=lambda kv: kv[1], reverse=True)
+    ]
+    return AllocationResponse(total=total, slices=slices)
+
+
 @router.post("/alerts/{alert_id}/read", response_model=AlertOut)
 async def mark_alert_read(alert_id: int, session: AsyncSession = Depends(profile_session)):
     a = await session.get(PriceAlert, alert_id)
