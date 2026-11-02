@@ -3,6 +3,7 @@
 import gzip
 import io
 import json
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,7 @@ from httpx import ASGITransport, AsyncClient
 from reign.adapters.database import get_session_factory, init_db
 from reign.api.app import app
 from reign.api.routes import backup as backup_module
+from reign.api.routes.backup import prune_backups
 from reign.services.settings import set_setting
 
 
@@ -140,3 +142,17 @@ async def test_digest_cycle_sends_then_skips_same_day(client, tmp_path, monkeypa
     r = await client.get("/api/settings/digest_last_run", headers={"X-Reign-Profile": slug})
     assert r.status_code == 200
     assert r.json()["value"] != ""
+
+
+def test_prune_backups_tiered(tmp_path):
+    base = datetime(2026, 3, 15, 10, 0, 0)
+    for i in range(60):
+        day = base - timedelta(days=i)
+        (tmp_path / f"reign_auto_{day.strftime('%Y-%m-%d_%H-%M-%S')}.json.gz").write_bytes(b"x")
+    (tmp_path / "reign_auto_broken.json").write_bytes(b"x")
+    deleted = prune_backups(tmp_path)
+    remaining = sorted(p.name for p in tmp_path.glob("reign_auto_*.json*"))
+    assert len(remaining) <= 7 + 4 + 6 + 1
+    assert deleted == 60 + 1 - len(remaining)
+    assert "reign_auto_broken.json" in remaining
+    assert f"reign_auto_{base.strftime('%Y-%m-%d_%H-%M-%S')}.json.gz" in remaining
