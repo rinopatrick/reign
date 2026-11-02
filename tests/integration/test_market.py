@@ -1,5 +1,6 @@
 """Tests: market price mapping + refresh endpoints (mocked network)."""
 
+import urllib.request
 from decimal import Decimal
 
 import pytest
@@ -7,8 +8,10 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 import reign.api.routes.holdings as holdings_route
+import reign.config
 import reign.services.market as market_module
 from reign.api.app import app
+from reign.services import notify as notify_module
 from reign.services.market import resolve_yahoo_symbol
 
 
@@ -193,3 +196,32 @@ async def test_alert_center_flow(client, monkeypatch):
     assert r.json()["is_read"] is True
     r = await client.post("/api/holdings/alerts/read-all")
     assert r.json()["marked"] >= 0
+
+
+@pytest.mark.asyncio
+async def test_notify_channels_off_by_default(monkeypatch):
+    monkeypatch.setattr(reign.config.settings, "alert_smtp_host", "", raising=False)
+    monkeypatch.setattr(reign.config.settings, "alert_webhook_url", "", raising=False)
+    assert notify_module.smtp_configured() is False
+    assert notify_module.webhook_configured() is False
+    assert notify_module.notify_email("t", "b") is False
+    assert notify_module.notify_webhook("t", "b") is False
+    result = notify_module.notify_alert_fired("BBCA", "above", 1, 2, 3)
+    assert result == {"email": False, "webhook": False}
+
+
+@pytest.mark.asyncio
+async def test_notify_webhook_success(monkeypatch):
+    monkeypatch.setattr(reign.config.settings, "alert_webhook_url", "http://x/hook", raising=False)
+
+    class FakeResp:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(urllib.request, "urlopen", lambda _req, **_kw: FakeResp())
+    assert notify_module.notify_webhook("t", "b") is True

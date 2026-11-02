@@ -16,6 +16,13 @@ class Settings(BaseSettings):
     max_csv_bytes: int = 5 * 1024 * 1024
     max_json_bytes: int = 10 * 1024 * 1024
     backups_dir: str = "./backups"
+    alert_smtp_host: str = ""
+    alert_smtp_port: int = 587
+    alert_smtp_user: str = ""
+    alert_smtp_password: str = ""
+    alert_email_from: str = ""
+    alert_email_to: str = ""
+    alert_webhook_url: str = ""
 
 
 settings = Settings()
