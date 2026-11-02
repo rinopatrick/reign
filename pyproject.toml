@@ -61,6 +61,9 @@ ignore = ["E501", "S101", "COM812", "ISC001", "B008", "TC002", "TC003"]
 # Tests only: pytest asserts, fixtures, magic numbers in test data are idiomatic.
 # No src/ ignores — production code must be clean without waivers.
 "tests/**/*" = ["S101", "SLF001", "ARG001", "PLR2004"]
+# notify.py: S310 false positive — URL scheme is validated to http(s) via
+# urllib.parse.urlsplit immediately before use; documented exception.
+"src/reign/services/notify.py" = ["S310"]
 
 [tool.ruff.lint.isort]
 combine-as-imports = true

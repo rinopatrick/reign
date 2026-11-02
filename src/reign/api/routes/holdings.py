@@ -15,6 +15,7 @@ from reign.domain.enums import Currency
 from reign.domain.models import Holding, PriceAlert, PricePoint
 from reign.exceptions import NotFoundError
 from reign.services.market import fetch_price, resolve_yahoo_symbol
+from reign.services.notify import notify_alert_fired
 
 router = APIRouter()
 
@@ -172,6 +173,7 @@ async def _fire_alert_if_hit(session: AsyncSession, h: Holding, price: Decimal) 
             currency=h.currency or "IDR",
         )
     )
+    notify_alert_fired(h.symbol, direction, price, target, h.id)
 
 
 @router.get("/{holding_id}/history")
