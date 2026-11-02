@@ -19,6 +19,11 @@ def _detect_bca(header: list[str]) -> bool:
     )
 
 
+def _clean_idr_amount(raw: str) -> str:
+    """Normalize Indonesian-formatted numbers (1.234.567,89 -> 1234567.89)."""
+    return raw.strip().replace(".", "").replace(",", ".")
+
+
 def _parse_bca(rows: list[dict]) -> list[dict]:
     out: list[dict] = []
     for row in rows:
@@ -41,6 +46,59 @@ def _parse_bca(rows: list[dict]) -> list[dict]:
             }
         )
     return out
+
+
+def _detect_bri(header: list[str]) -> bool:
+    # BRI and BNI share the same columns (Tanggal + desc + Debit/Kredit).
+    # Disambiguation happens by date style, probed in _parse_bri_bni below:
+    # dd/MM/yyyy -> bri, dd-MMM-yyyy -> bni.
+    has_date = "Tanggal" in header
+    has_desc = any(k in ("Uraian", "Keterangan", "Description") for k in header)
+    has_dr_cr = "Debit" in header and "Kredit" in header
+    return has_date and has_desc and has_dr_cr and "Tanggal Transaksi" not in header
+
+
+def _parse_bri(rows: list[dict]) -> list[dict]:
+    return _parse_bri_bni(rows, "%d/%m/%Y")
+
+
+def _parse_bri_bni(rows: list[dict], date_fmt: str) -> list[dict]:
+    """Shared BRI/BNI body: same columns, only the date style differs."""
+    out: list[dict] = []
+    for row in rows:
+        date_str = row.get("Tanggal", "").strip()
+        desc = next(
+            (row.get(k, "").strip() for k in ("Uraian", "Keterangan", "Description") if k in row),
+            "",
+        )
+        debit = _clean_idr_amount(row.get("Debit", ""))
+        credit = _clean_idr_amount(row.get("Kredit", ""))
+        if not date_str:
+            continue
+        try:
+            dt = datetime.strptime(date_str, date_fmt)
+        except ValueError:
+            continue
+        amount = Decimal("0")
+        if debit:
+            amount = -Decimal(debit)
+        elif credit:
+            amount = Decimal(credit)
+        else:
+            continue
+        out.append(
+            {
+                "date": dt.date().isoformat(),
+                "description": desc,
+                "amount": amount,
+                "currency": "IDR",
+            }
+        )
+    return out
+
+
+def _parse_bni(rows: list[dict]) -> list[dict]:
+    return _parse_bri_bni(rows, "%d-%b-%Y")
 
 
 def _detect_mandiri(header: list[str]) -> bool:
@@ -194,10 +252,30 @@ def _parse_generic(rows: list[dict]) -> list[dict]:
     return out
 
 
+def _bni_date_style(rows: list[dict]) -> bool:
+    """True when the first parseable dated row uses BNI's dd-MMM-yyyy style."""
+    for row in rows:
+        date_str = row.get("Tanggal", "").strip()
+        if not date_str:
+            continue
+        try:
+            datetime.strptime(date_str, "%d-%b-%Y")
+            return True
+        except ValueError:
+            pass
+        try:
+            datetime.strptime(date_str, "%d/%m/%Y")
+            return False
+        except ValueError:
+            continue
+    return False
+
+
 BANK_FORMATS: list[tuple[str, Callable, Callable]] = [
     ("bca", _detect_bca, _parse_bca),
     ("mandiri", _detect_mandiri, _parse_mandiri),
     ("jenius", _detect_jenius, _parse_jenius),
+    ("bri", _detect_bri, _parse_bri),
     ("generic", _detect_generic, _parse_generic),
 ]
 
@@ -224,6 +302,8 @@ def parse_csv(content: str | bytes) -> tuple[str, list[dict]]:
 
     for name, detector, parser in BANK_FORMATS:
         if detector(header):
+            if name == "bri" and _bni_date_style(rows):
+                return "bni", _parse_bni(rows)
             return name, parser(rows)
 
     raise CSVParseError(f"Unknown CSV format. Headers: {header}")
