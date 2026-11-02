@@ -1077,6 +1077,7 @@ async function renderInvest(container) {
   const [holdings, accounts, alerts, alloc] = await Promise.all([apiGet('/api/holdings'), apiGet('/api/accounts'), apiGet('/api/holdings/alerts/list?unread_only=true').catch(() => []), apiGet('/api/holdings/allocation').catch(() => ({total: 0, slices: []}))]);
   const total = holdings.reduce((a, h) => a + Number(h.value), 0);
   const pnl = holdings.reduce((a, h) => a + Number(h.pnl), 0);
+  syncAppBadge(alerts.length);
   container.innerHTML = `
     ${alerts.length ? `<div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 mb-4 text-sm">
       <div class="flex items-center justify-between mb-2">
@@ -1243,6 +1244,17 @@ async function downloadHoldingsPdf(lang = 'id') {
   a.href = URL.createObjectURL(blob);
   a.download = `holdings_${lang}.pdf`;
   a.click();
+}
+
+function syncAppBadge(count) {
+  try {
+    if ('setAppBadge' in navigator && navigator.setAppBadge) {
+      if (count > 0) navigator.setAppBadge(count).catch(() => {});
+      else if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {});
+    }
+  } catch { /* badge unsupported — silent */ }
+  const base = 'Reign';
+  document.title = count > 0 ? `(${count}) ${base}` : base;
 }
 
 async function markAlertRead(id) {
