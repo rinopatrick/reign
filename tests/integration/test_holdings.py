@@ -84,3 +84,29 @@ async def test_alert_above_and_below(client):
         json={"current_price": 100, "alert_above": None, "alert_below": None},
     )
     assert r.json()["alert"] is None
+
+
+@pytest.mark.asyncio
+async def test_allocation_sums_to_total(client):
+    r = await client.get("/api/accounts")
+    acc = r.json()[0]
+    for sym, units, price in (("AA", 1, 100), ("BB", 3, 100)):
+        r = await client.post(
+            "/api/holdings",
+            json={
+                "symbol": sym,
+                "units": units,
+                "cost_basis": 1,
+                "current_price": price,
+                "currency": "IDR",
+                "account_id": acc["id"],
+            },
+        )
+        assert r.status_code == 201
+    r = await client.get("/api/holdings/allocation")
+    assert r.status_code == 200
+    data = r.json()
+    mine = {s["symbol"]: s for s in data["slices"] if s["symbol"] in ("AA", "BB")}
+    assert set(mine) == {"AA", "BB"}
+    assert float(mine["AA"]["value"]) + float(mine["BB"]["value"]) == 400.0
+    assert mine["BB"]["weight"] / mine["AA"]["weight"] == pytest.approx(3.0)

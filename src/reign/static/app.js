@@ -1142,6 +1142,7 @@ async function renderInvest(container) {
     </div>
   `;
   loadSparklines();
+  drawAllocChart(alloc);
 }
 
 async function createHolding(e) {
@@ -1185,6 +1186,32 @@ async function markAlertRead(id) {
 async function markAllAlertsRead() {
   await apiPost('/api/holdings/alerts/read-all', {});
   renderView('invest');
+}
+
+const ALLOC_COLORS = ['#2563eb','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#14b8a6'];
+
+function drawAllocChart(alloc) {
+  const el = document.getElementById('allocChart');
+  if (!el || typeof Chart === 'undefined') return;
+  const slices = (alloc && alloc.slices) || [];
+  charts.push(new Chart(el.getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: slices.map(s => s.symbol),
+      datasets: [{
+        data: slices.map(s => Number(s.value)),
+        backgroundColor: slices.map((_, i) => ALLOC_COLORS[i % ALLOC_COLORS.length]),
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280' } },
+        tooltip: { callbacks: { label: (c) => ` ${c.label}: ${formatMoney(c.parsed)} (${(slices[c.dataIndex].weight * 100).toFixed(1)}%)` } },
+      },
+    },
+  }));
 }
 
 function drawSparkline(canvas, prices) {
