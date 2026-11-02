@@ -50,6 +50,16 @@ async def test_profiles_crud_and_isolation(client):
 
 
 @pytest.mark.asyncio
+async def test_backup_per_profile_isolated(client, tmp_path, monkeypatch):
+    monkeypatch.setenv("REIGN_DATA_DIR", str(tmp_path))
+    r = await client.get("/api/backup", headers={"X-Reign-Profile": "kantor2"})
+    assert r.status_code == 200
+    assert r.json()["accounts"] == []
+    r = await client.post("/api/backup/trigger", headers={"X-Reign-Profile": "kantor2"})
+    assert r.status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_profile_header_isolation(client):
     r = await client.get("/api/accounts", headers={"X-Reign-Profile": "kantor"})
     assert r.status_code == 200

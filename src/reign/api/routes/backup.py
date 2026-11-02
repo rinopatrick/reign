@@ -1,6 +1,7 @@
 """Backup/restore API routes — hardened: full payload, size limits, dry-run + snapshot."""
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -8,12 +9,18 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from reign.adapters.database import AsyncSessionLocal
+from reign.adapters.database import (
+    AsyncSessionLocal,
+    _data_root,
+    get_session_factory,
+    init_db,
+    validate_slug,
+)
 from reign.adapters.repository import (
     AccountRepository,
     CategoryRepository,
@@ -34,17 +41,20 @@ BACKUPS_DIR = Path(os.getenv("REIGN_BACKUPS_DIR", settings.backups_dir))
 MAX_AUTO_BACKUPS = 10
 
 
+def _backups_dir(profile: str = "default") -> Path:
+    if profile == "default":
+        d = Path(os.getenv("REIGN_BACKUPS_DIR", settings.backups_dir))
+    else:
+        d = _data_root() / "profiles" / validate_slug(profile) / "backups"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
 class DecimalEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, Decimal):
             return str(o)
         return super().default(o)
-
-
-def _backups_dir() -> Path:
-    d = Path(os.getenv("REIGN_BACKUPS_DIR", settings.backups_dir))
-    d.mkdir(parents=True, exist_ok=True)
-    return d
 
 
 async def _collect_backup_data(session) -> dict:
@@ -158,15 +168,16 @@ async def _snapshot_current(session, backups_dir: Path) -> str:
     return str(snap)
 
 
-async def do_auto_backup() -> str | None:
-    """Export backup JSON to backups/ folder. Returns filepath or None."""
-    async with AsyncSessionLocal() as session:
+async def do_auto_backup(profile: str = "default") -> str | None:
+    """Export backup JSON to the profile backups/ folder. Returns filepath or None."""
+    slug = validate_slug(profile)
+    async with get_session_factory(slug)() as session:
         enabled = (await _get_setting(session, "auto_backup_enabled", "false")).lower() == "true"
         if not enabled:
             return None
         data = await _collect_backup_data(session)
 
-    backups_dir = _backups_dir()
+    backups_dir = _backups_dir(slug)
     filepath = backups_dir / f"reign_auto_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.json"
     with filepath.open("w", encoding="utf-8") as f:
         json.dump(data, f, cls=DecimalEncoder, indent=2)
@@ -175,7 +186,7 @@ async def do_auto_backup() -> str | None:
     for old in auto_backups[:-MAX_AUTO_BACKUPS]:
         old.unlink()
 
-    async with AsyncSessionLocal() as session:
+    async with get_session_factory(slug)() as session:
         await _set_setting(session, "auto_backup_last_run", datetime.now().isoformat())
     return str(filepath)
 
@@ -207,9 +218,22 @@ async def backup_scheduler():
         await asyncio.sleep(3600)
 
 
+def _req_profile(request: Request) -> str:
+    return validate_slug(request.headers.get("x-reign-profile", "") or "default")
+
+
+@contextlib.asynccontextmanager
+async def _session_for_request(request: Request):
+    factory = get_session_factory(_req_profile(request))
+    async with factory() as session:
+        yield session
+
+
 @router.get("/backup")
-async def export_backup():
-    async with AsyncSessionLocal() as session:
+async def export_backup(request: Request):
+    profile = _req_profile(request)
+    await init_db(profile)
+    async with _session_for_request(request) as session:
         data = await _collect_backup_data(session)
     return JSONResponse(
         content=json.loads(json.dumps(data, cls=DecimalEncoder)),
@@ -218,7 +242,7 @@ async def export_backup():
 
 
 @router.post("/restore")
-async def import_backup(file: UploadFile = File(...), *, dry_run: bool = False):
+async def import_backup(request: Request, file: UploadFile = File(...), *, dry_run: bool = False):
     if not file.filename or not file.filename.lower().endswith(".json"):
         raise HTTPException(status_code=400, detail="File must be JSON")
     content = await read_limited_upload(file, settings.max_json_bytes, "Backup")
@@ -231,8 +255,9 @@ async def import_backup(file: UploadFile = File(...), *, dry_run: bool = False):
     if dry_run:
         return {"message": "Dry run OK", "would_restore": counts}
 
-    async with AsyncSessionLocal() as session:
-        backups_dir = _backups_dir()
+    profile = _req_profile(request)
+    async with _session_for_request(request) as session:
+        backups_dir = _backups_dir(profile)
         snapshot_path = await _snapshot_current(session, backups_dir)
         try:
             await run_restore(session, data)
@@ -255,9 +280,9 @@ async def import_backup(file: UploadFile = File(...), *, dry_run: bool = False):
 
 
 @router.post("/backup/trigger")
-async def trigger_backup():
+async def trigger_backup(request: Request):
     """Manually trigger an auto-backup (saves to backups/ folder)."""
-    filepath = await do_auto_backup()
+    filepath = await do_auto_backup(_req_profile(request))
     if filepath:
         return {"message": "Backup saved", "path": filepath}
     return {"message": "Backup skipped — auto-backup is disabled"}
