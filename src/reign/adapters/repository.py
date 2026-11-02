@@ -289,6 +289,11 @@ class TransactionRepository:
         )
         return (await self._session.execute(stmt)).scalar_one()
 
+    async def get_category_id_map(self) -> dict[str, int]:
+        """Map category name to id (for Sankey drill-down)."""
+        result = await self._session.execute(select(Category.id, Category.name))
+        return {name: cid for cid, name in result.all()}
+
     async def get_spent_map(self, year: int, month: int) -> dict[tuple[int, str], Decimal]:
         """One query for all (category_id, currency) spent. Value is positive."""
         stmt = (

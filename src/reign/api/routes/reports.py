@@ -83,6 +83,7 @@ async def sankey(
     tx_repo = TransactionRepository(session)
     income_cats = await tx_repo.get_income_by_category(year, month, currency)
     expense_cats = await tx_repo.get_category_totals(year, month, currency)
+    cat_ids = await tx_repo.get_category_id_map()
     total_in = sum((Decimal(str(v)) for _, v in income_cats), Decimal("0"))
     total_out = sum((abs(Decimal(str(v))) for _, v in expense_cats), Decimal("0"))
     remainder = total_in - total_out
@@ -96,7 +97,13 @@ async def sankey(
         for name, v in income_cats
     ]
     links += [
-        {"source": "income", "target": f"out:{name}", "value": str(abs(Decimal(str(v))))}
+        {
+            "source": "income",
+            "target": f"out:{name}",
+            "value": str(abs(Decimal(str(v)))),
+            "category_id": cat_ids.get(name),
+            "category": name,
+        }
         for name, v in expense_cats
     ]
     if remainder > 0:
