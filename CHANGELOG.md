@@ -1,5 +1,14 @@
 # Changelog — Reign
 
+## v0.11.0 — Rotasi VAPID, digest harian, retensi berjenjang, Sankey, polish UI (2026-11-02)
+
+- Rotasi VAPID terpandu + hapus subscription basi + konfirmasi UI (PR #98, closes #93)
+- Digest harian multi-channel per-profil + hook scheduler + toggle UI (PR #99, closes #94)
+- Retensi arsip berjenjang 7 harian + 4 mingguan + 6 bulanan (PR #100, closes #95)
+- Grafik Sankey arus kas: endpoint + income per kategori + render kolom tanpa dep (PR #101, closes #96)
+- Polish better-*: aria-label toggle, focus-visible, reduced-motion, input 16px mobile, copy ID, tabular-nums, press 0.96 (PR #102, closes #97)
+- Suite: 110 passed + 1 skipped, ruff bersih, JS valid, smoke browser hijau
+
 ## v0.10.0 — VAPID generator, badge PWA, arsip gzip (2026-11-02)
 
 - VAPID generator di Settings: sekali tampil + env hint + roundtrip sign verify (PR #89, closes #86)
