@@ -18,7 +18,7 @@
 <script>
 tailwind.config = { darkMode: 'class' };
 </script>
-<style>body{font-family:'Inter',sans-serif;} :focus-visible{outline:2px solid #0077B6;outline-offset:2px;border-radius:4px} @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:0.01ms !important;transition-duration:0.01ms !important}} @media (max-width:640px){input,select{font-size:16px}}</style>
+<style>body{font-family:'Inter',sans-serif;} :focus-visible{outline:2px solid #0077B6;outline-offset:2px;border-radius:4px} .high-contrast :focus-visible{outline-width:3px} .high-contrast .text-gray-500{color:#3f3f46} .high-contrast .dark .text-gray-400,.high-contrast.dark .text-gray-400{color:#d4d4d8} .high-contrast .border{border-color:#52525b} .high-contrast .dark .border-gray-700,.high-contrast.dark .border-gray-700{border-color:#a1a1aa} @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:0.01ms !important;transition-duration:0.01ms !important}} @media (max-width:640px){input,select{font-size:16px}}</style>
 </head>
 <body class="bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 transition-colors">
 <div id="app" class="min-h-screen flex">
@@ -110,7 +110,8 @@ tailwind.config = { darkMode: 'class' };
       </div>
       <div class="flex items-center gap-3">
         <select id="profile-select" onchange="switchProfile(this.value)" title="Profil lokal" class="text-sm border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-2 py-1.5"></select>
-        <button onclick="toggleDarkMode()" id="dark-mode-btn" class="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition" title="Toggle dark mode">
+        <button onclick="toggleContrast()" id="contrast-btn" aria-label="Kontras tinggi" title="Kontras tinggi" class="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition text-sm font-bold">A+</button>
+        <button onclick="toggleDarkMode()" id="dark-mode-btn" aria-label="Mode gelap" class="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition" title="Toggle dark mode">
           <svg id="moon-icon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
           <svg id="sun-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
         </button>

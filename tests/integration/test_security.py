@@ -115,3 +115,18 @@ async def test_restore_dry_run_and_snapshot(client):
     )
     assert r.status_code == 200
     assert "snapshot" in r.json()
+
+
+@pytest.mark.asyncio
+async def test_contrast_toggle_assets_present(client):
+    r = await client.get("/")
+    assert r.status_code == 200
+    r = await client.get("/static/index.html")
+    assert r.status_code == 200
+    html = r.text
+    assert "toggleContrast()" in html
+    assert "high-contrast" in html
+    assert 'aria-label="Kontras tinggi"' in html
+    js = (await client.get("/static/app.js")).text
+    assert "prefers-contrast" in js
+    assert "localStorage.setItem('contrast'" in js
