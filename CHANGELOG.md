@@ -1,5 +1,12 @@
 # Changelog — Reign
 
+## v0.12.0 — Sankey PDF, drill-down, kontras tinggi (2026-11-02)
+
+- Export Sankey ke PDF: generate_sankey_report + /sankey/pdf + tombol Dashboard (PR #107, closes #104)
+- Drill-down kategori Sankey: category_id di links + tombol Lihat + panel detail (PR #108, closes #105)
+- Tema kontras tinggi: class high-contrast + toggle header + localStorage + prefers-contrast (PR #109, closes #106)
+- Suite: 113 passed + 1 skipped, ruff bersih, JS valid, smoke browser hijau
+
 ## v0.11.0 — Rotasi VAPID, digest harian, retensi berjenjang, Sankey, polish UI (2026-11-02)
 
 - Rotasi VAPID terpandu + hapus subscription basi + konfirmasi UI (PR #98, closes #93)
