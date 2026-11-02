@@ -2,12 +2,14 @@
 
 import io
 from base64 import urlsafe_b64decode
+from decimal import Decimal
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 from pypdf import PdfReader
 from pywebpush import Vapid
 
+import reign.api.routes.holdings as holdings_route
 from reign.api.app import app
 from reign.services import notify as notify_module
 
@@ -216,3 +218,40 @@ async def test_vapid_generate_returns_valid_keypair(client):
     )
     assert headers["Authorization"].startswith("vapid t=")
     assert f"k={data['public_key']}" in headers["Authorization"]
+
+
+@pytest.mark.asyncio
+async def test_unread_alert_count_flow(client, monkeypatch):
+    async def fake_price(_symbol):
+        return Decimal("160.0")
+
+    monkeypatch.setattr(holdings_route, "fetch_price", fake_price)
+    r = await client.get("/api/accounts")
+    acc = r.json()[0]
+    r = await client.post(
+        "/api/holdings",
+        json={
+            "symbol": "UB1",
+            "units": 1,
+            "cost_basis": 100,
+            "current_price": 100,
+            "currency": "IDR",
+            "account_id": acc["id"],
+            "alert_above": 120,
+        },
+    )
+    assert r.status_code == 201
+    hid = r.json()["id"]
+    r = await client.post(f"/api/holdings/{hid}/refresh")
+    assert r.status_code == 200
+    r = await client.get("/api/holdings/alerts/unread-count")
+    assert r.status_code == 200
+    assert r.json()["unread"] >= 1
+    r = await client.get("/api/holdings/alerts/list?unread_only=true")
+    unread = [a for a in r.json() if a["symbol"] == "UB1"]
+    assert len(unread) == 1
+    aid = unread[0]["id"]
+    r = await client.post(f"/api/holdings/alerts/{aid}/read", json={})
+    assert r.status_code == 200
+    r = await client.get("/api/holdings/alerts/list?unread_only=true")
+    assert all(a["id"] != aid for a in r.json())
