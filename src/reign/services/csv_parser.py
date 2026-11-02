@@ -101,6 +101,123 @@ def _parse_bni(rows: list[dict]) -> list[dict]:
     return _parse_bri_bni(rows, "%d-%b-%Y")
 
 
+def _detect_blu(header: list[str]) -> bool:
+    # Blu by BCA Digital export: Tanggal + Keterangan + Debit/Kredit (+ optional
+    # reference columns like No/ID Transaksi). Disambiguated from BRI/BNI by the
+    # presence of a reference column; from BCA by the Debit/Kredit pair.
+    has_date = "Tanggal" in header
+    has_desc = any(k in ("Keterangan", "Uraian", "Description") for k in header)
+    has_dr_cr = "Debit" in header and "Kredit" in header
+    has_ref = any(
+        k in header for k in ("No", "No.", "ID", "ID Transaksi", "No Referensi", "Referensi")
+    )
+    return has_date and has_desc and has_dr_cr and has_ref and "Tanggal Transaksi" not in header
+
+
+def _parse_blu(rows: list[dict]) -> list[dict]:
+    return _parse_bri_bni(rows, "%d/%m/%Y")
+
+
+def _detect_jago(header: list[str]) -> bool:
+    # Bank Jago pocket export: Tanggal + a Jago-specific marker (Detail/Mutasi/
+    # Nominal/Jumlah). The marker requirement keeps BNI/BRI headers from matching.
+    has_date = "Tanggal" in header
+    has_jago_marker = any(
+        k in header
+        for k in (
+            "Detail",
+            "Detail Transaksi",
+            "Mutasi",
+            "Mutation",
+            "Tipe",
+            "Type",
+            "CR/DB",
+            "DB/CR",
+            "Nominal",
+            "Jumlah",
+        )
+    )
+    return has_date and has_jago_marker
+
+
+def _jago_amount_from_mutation(row: dict, mut: str, amt_key, debit_key, credit_key):
+    """Amount from CR/DB mutation marker; None when unusable."""
+    raw = row.get(amt_key or debit_key or credit_key or "", "")
+    value = abs(_clean_decimal(raw))
+    if value == 0:
+        return None
+    if mut in ("CR", "CREDIT", "C", "MASUK", "KREDIT"):
+        return value
+    if mut in ("DB", "DEBIT", "D", "KELUAR", "DEBET"):
+        return -value
+    return None
+
+
+def _jago_amount_plain(row: dict, amt_key, debit_key, credit_key):
+    """Amount from signed amount or Debit/Kredit columns; None when unusable."""
+    if amt_key:
+        try:
+            amount = Decimal(_clean_idr_amount(row.get(amt_key, "")))
+        except InvalidOperation:
+            return None
+        return amount if amount != 0 else None
+    if debit_key or credit_key:
+        debit = _clean_idr_amount(row.get(debit_key, "") if debit_key else "")
+        credit = _clean_idr_amount(row.get(credit_key, "") if credit_key else "")
+        if debit:
+            return -Decimal(debit)
+        if credit:
+            return Decimal(credit)
+    return None
+
+
+def _parse_jago(rows: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    keys = list(rows[0].keys()) if rows else []
+    date_key = next((k for k in keys if "tanggal" in k.lower() or "date" in k.lower()), "Tanggal")
+    desc_keys = [
+        k for k in ("Detail", "Detail Transaksi", "Keterangan", "Description") if k in keys
+    ]
+    mut_key = next(
+        (k for k in keys if k in ("Mutasi", "Mutation", "Tipe", "Type", "CR/DB", "DB/CR")), None
+    )
+    amt_key = next((k for k in keys if "amount" in k.lower() or k in ("Nominal", "Jumlah")), None)
+    debit_key = next((k for k in keys if k.lower() == "debit"), None)
+    credit_key = next((k for k in keys if k.lower() in ("kredit", "credit")), None)
+    for row in rows:
+        date_str = row.get(date_key, "").strip()
+        desc = next((row.get(k, "").strip() for k in desc_keys), "")
+        if not date_str or not desc:
+            continue
+        dt = _parse_flexible_date(date_str)
+        if not dt:
+            continue
+        amount = None
+        mut = row.get(mut_key, "").strip().upper() if mut_key else ""
+        if mut:
+            amount = _jago_amount_from_mutation(row, mut, amt_key, debit_key, credit_key)
+        else:
+            amount = _jago_amount_plain(row, amt_key, debit_key, credit_key)
+        if amount is None or amount == 0:
+            continue
+        out.append(
+            {
+                "date": dt.date().isoformat(),
+                "description": desc,
+                "amount": amount,
+                "currency": "IDR",
+            }
+        )
+    return out
+
+
+def _clean_decimal(raw: str) -> Decimal:
+    try:
+        return Decimal(_clean_idr_amount(raw or ""))
+    except InvalidOperation:
+        return Decimal("0")
+
+
 def _detect_mandiri(header: list[str]) -> bool:
     return "Tanggal Transaksi" in header or ("Debit" in header and "Credit" in header)
 
@@ -275,6 +392,8 @@ BANK_FORMATS: list[tuple[str, Callable, Callable]] = [
     ("bca", _detect_bca, _parse_bca),
     ("mandiri", _detect_mandiri, _parse_mandiri),
     ("jenius", _detect_jenius, _parse_jenius),
+    ("blu", _detect_blu, _parse_blu),
+    ("jago", _detect_jago, _parse_jago),
     ("bri", _detect_bri, _parse_bri),
     ("generic", _detect_generic, _parse_generic),
 ]

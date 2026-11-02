@@ -10,6 +10,9 @@ MANDIRI = "Tanggal Transaksi,Description,Debit,Credit\n15/04/2026,KOPI,75000,\n1
 JENIUS = "Date,Description,Amount\n2026-04-15,KOPI,-75000\n2026-04-16,GAJI,15000000\n"
 BRI = "Tanggal,Uraian,Debit,Kredit,Saldo\n15/04/2026,TRSF E-BANKING,500000,,10000000\n16/04/2026,SETORAN,,2000000,12000000\n"
 BNI = "Tanggal,Keterangan,Debit,Kredit,Saldo\n15-Apr-2026,QRIS PAY,150000,,9850000\n16-Apr-2026,GAJI MASUK,,15000000,24850000\n"
+BLU = "Tanggal,Keterangan,Debit,Kredit,No Referensi\n15/04/2026,QRIS PAY,25000,,REF001\n16/04/2026,TOP UP,,100000,REF002\n"
+JAGO_CRDB = "Tanggal,Detail,Mutasi,Nominal\n15/04/2026,Transfer Masuk,CR,500000\n16/04/2026,Jajan,DB,75000\n"
+JAGO_SIGNED = "Tanggal,Detail Transaksi,Amount\n2026-04-15,KOPI,-75000\n2026-04-16,GAJI,15000000\n"
 
 
 def test_parse_bca():
@@ -63,6 +66,28 @@ def test_parse_bni_skips_bad_rows():
     fmt, rows = parse_csv(bad)
     assert fmt == "bni"
     assert len(rows) == 1
+
+
+def test_parse_blu():
+    fmt, rows = parse_csv(BLU)
+    assert fmt == "blu"
+    assert len(rows) == 2
+    assert rows[0]["amount"] < 0
+    assert rows[1]["amount"] > 0
+
+
+def test_parse_jago_crdb():
+    fmt, rows = parse_csv(JAGO_CRDB)
+    assert fmt == "jago"
+    assert len(rows) == 2
+    assert rows[0]["amount"] > 0
+    assert rows[1]["amount"] < 0
+
+
+def test_parse_jago_signed_amount():
+    fmt, rows = parse_csv(JAGO_SIGNED)
+    assert fmt == "jago"
+    assert len(rows) == 2
 
 
 def test_parse_unknown_format_raises():
