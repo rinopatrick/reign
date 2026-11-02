@@ -1,5 +1,13 @@
 # Changelog — Reign
 
+## v0.8.0 — PDF holdings, live price test, arsip harian + fix chart (2026-11-02)
+
+- PDF holdings per-profil + ringkasan + alokasi via /reports/holdings + tombol Export PDF + HoldingRepository (PR #74, closes #71)
+- Live Yahoo Finance test dengan skip graceful saat offline/diblokir (PR #75, closes #72)
+- Arsip backup per-profil: endpoint /backup/history + list riwayat di Settings (PR #76, closes #73)
+- Fix regresi: kembalikan fetch allocation + canvas doughnut di Invest (PR #77)
+- Suite: 95 passed + 1 skipped, ruff bersih, JS valid, smoke browser hijau
+
 ## v0.7.0 — Alokasi portofolio, notifikasi alert, PDF per-profil (2026-11-02)
 
 - Donut alokasi portofolio + endpoint /holdings/allocation + tooltip bobot (PR #67, closes #64)
