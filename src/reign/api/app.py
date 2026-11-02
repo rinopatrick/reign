@@ -24,7 +24,7 @@ from reign.api.routes.settings import router as settings_router
 from reign.api.routes.transactions import router as transactions_router
 from reign.config import settings
 from reign.logging import setup_logging
-from reign.utils.seed import seed_categories, seed_demo_account
+from reign.utils.seed import ensure_schema_version, seed_categories, seed_demo_account
 
 
 @asynccontextmanager
@@ -32,6 +32,7 @@ async def lifespan(_app: FastAPI):
     setup_logging()
     await init_db()
     async with AsyncSessionLocal() as session:
+        await ensure_schema_version(session)
         await seed_categories(session)
         await seed_demo_account(session)
     # Keep a reference so the scheduler is not GC'd (RUF006).

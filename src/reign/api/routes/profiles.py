@@ -15,7 +15,7 @@ from reign.adapters.database import (
     validate_slug,
 )
 from reign.exceptions import ProfileError
-from reign.utils.seed import seed_categories, seed_demo_account
+from reign.utils.seed import ensure_schema_version, seed_categories, seed_demo_account
 
 router = APIRouter()
 
@@ -75,6 +75,7 @@ async def create_profile(data: ProfileCreate):
         return {"profile": slug, "created": False}
     await init_db(slug)
     async with _session_for(slug) as s:
+        await ensure_schema_version(s)
         await seed_categories(s)
         await seed_demo_account(s)
     return {"profile": slug, "created": True}
