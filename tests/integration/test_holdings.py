@@ -110,3 +110,12 @@ async def test_allocation_sums_to_total(client):
     assert set(mine) == {"AA", "BB"}
     assert float(mine["AA"]["value"]) + float(mine["BB"]["value"]) == 400.0
     assert mine["BB"]["weight"] / mine["AA"]["weight"] == pytest.approx(3.0)
+
+
+@pytest.mark.asyncio
+async def test_holdings_pdf_report(client):
+    r = await client.get("/api/reports/holdings")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("application/pdf")
+    assert "holdings_default" in r.headers["content-disposition"]
+    assert r.content[:5] == b"%PDF-"

@@ -1103,6 +1103,7 @@ async function renderInvest(container) {
       <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h3 class="text-sm font-semibold dark:text-gray-200">Add / Refresh</h3>
         <button onclick="refreshAllPrices()" class="text-sm px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500">Refresh prices</button>
+        <button onclick="downloadHoldingsPdf()" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Export PDF</button>
       </div>
       <form onsubmit="createHolding(event)" class="flex gap-3 flex-wrap">
         <input name="symbol" placeholder="Symbol (e.g. BBCA)" class="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm" required>
@@ -1176,6 +1177,16 @@ async function refreshHolding(id) {
 async function refreshAllPrices() {
   await apiPost('/api/holdings/refresh-all', {});
   renderView('invest');
+}
+
+async function downloadHoldingsPdf() {
+  const r = await apiFetch('/api/reports/holdings');
+  if (!r.ok) { alert('Export PDF gagal'); return; }
+  const blob = await r.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'holdings.pdf';
+  a.click();
 }
 
 async function markAlertRead(id) {
