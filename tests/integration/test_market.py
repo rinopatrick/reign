@@ -1,0 +1,123 @@
+"""Tests: market price mapping + refresh endpoints (mocked network)."""
+
+from decimal import Decimal
+
+import pytest
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+
+import reign.api.routes.holdings as holdings_route
+import reign.services.market as market_module
+from reign.api.app import app
+from reign.services.market import resolve_yahoo_symbol
+
+
+def test_resolve_yahoo_symbol():
+    assert resolve_yahoo_symbol("bbca") == "BBCA.JK"
+    assert resolve_yahoo_symbol("BBCA.JK") == "BBCA.JK"
+    assert resolve_yahoo_symbol("AAPL") == "AAPL.JK"
+    assert resolve_yahoo_symbol("") == ""
+
+
+class _Resp:
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return {"chart": {"result": [{"meta": {"regularMarketPrice": 10250}, "indicators": {}}]}}
+
+
+class _Client:
+    async def get(self, url, **_kw):
+        assert "BBCA.JK" in url
+        return _Resp()
+
+    async def aclose(self):
+        pass
+
+
+@pytest.mark.asyncio
+async def test_fetch_price_mocked(monkeypatch):
+    monkeypatch.setattr(market_module.httpx, "AsyncClient", lambda **_kw: _Client())
+    assert await market_module.fetch_price("BBCA") == Decimal("10250")
+
+
+class _FailClient:
+    async def get(self, _url, **_kw):
+        raise ValueError("boom")
+
+    async def aclose(self):
+        pass
+
+
+@pytest.mark.asyncio
+async def test_fetch_price_unavailable(monkeypatch):
+    monkeypatch.setattr(market_module.httpx, "AsyncClient", lambda **_kw: _FailClient())
+    assert await market_module.fetch_price("XXXX") is None
+
+
+@pytest_asyncio.fixture
+async def client():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        yield c
+
+
+@pytest.mark.asyncio
+async def test_refresh_endpoints_mocked(client, monkeypatch):
+    async def fake_price(_symbol):
+        return Decimal("11000")
+
+    monkeypatch.setattr(holdings_route, "fetch_price", fake_price)
+    monkeypatch.setattr(market_module, "fetch_price", fake_price)
+
+    r = await client.get("/api/accounts")
+    acc = r.json()[0]
+    r = await client.post(
+        "/api/holdings",
+        json={
+            "symbol": "BBCA",
+            "units": 10,
+            "cost_basis": 9000,
+            "current_price": 9000,
+            "currency": "IDR",
+            "account_id": acc["id"],
+        },
+    )
+    hid = r.json()["id"]
+    r = await client.post(f"/api/holdings/{hid}/refresh")
+    assert r.status_code == 200
+    assert r.json()["current_price"] == "11000.00"
+    r = await client.post("/api/holdings/refresh-all")
+    assert r.status_code == 200
+    assert r.json()[0]["current_price"] == "11000.00"
+    r = await client.get("/api/holdings/market/lookup?symbol=bbca")
+    assert r.status_code == 200
+    assert r.json()["yahoo_symbol"] == "BBCA.JK"
+    r = await client.post("/api/holdings/999999/refresh")
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_refresh_unavailable_502(client, monkeypatch):
+    async def fake_none(_symbol):
+        return None
+
+    monkeypatch.setattr(holdings_route, "fetch_price", fake_none)
+
+    r = await client.get("/api/accounts")
+    acc = r.json()[0]
+    r = await client.post(
+        "/api/holdings",
+        json={
+            "symbol": "ZZZ9",
+            "units": 1,
+            "cost_basis": 1,
+            "current_price": 1,
+            "currency": "IDR",
+            "account_id": acc["id"],
+        },
+    )
+    hid = r.json()["id"]
+    r = await client.post(f"/api/holdings/{hid}/refresh")
+    assert r.status_code == 502
