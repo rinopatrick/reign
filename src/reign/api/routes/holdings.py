@@ -11,13 +11,72 @@ from sqlalchemy.orm import selectinload
 
 from reign.adapters.repository import AccountRepository
 from reign.api.routes.profiles import profile_session
+from reign.config import settings as app_settings
 from reign.domain.enums import Currency
-from reign.domain.models import Holding, PriceAlert, PricePoint
+from reign.domain.models import Holding, PriceAlert, PricePoint, PushSubscription
 from reign.exceptions import NotFoundError
 from reign.services.market import fetch_price, resolve_yahoo_symbol
-from reign.services.notify import notify_alert_fired
+from reign.services.notify import notify_alert_fired, send_push_alerts, vapid_configured
 
 router = APIRouter()
+
+
+class PushSubscribeIn(BaseModel):
+    endpoint: str = Field(min_length=10, max_length=2000)
+    p256dh: str = Field(min_length=10, max_length=500)
+    auth: str = Field(min_length=5, max_length=200)
+
+
+@router.get("/push/vapid-key")
+async def push_vapid_key():
+    """Public VAPID key for the browser subscription (empty when unconfigured)."""
+    return {
+        "publicKey": app_settings.vapid_public_key,
+        "configured": vapid_configured(),
+    }
+
+
+@router.post("/push/subscribe")
+async def push_subscribe(
+    payload: PushSubscribeIn, session: AsyncSession = Depends(profile_session)
+):
+    existing = (
+        (
+            await session.execute(
+                select(PushSubscription).where(PushSubscription.endpoint == payload.endpoint)
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if existing:
+        existing.p256dh = payload.p256dh
+        existing.auth = payload.auth
+    else:
+        session.add(
+            PushSubscription(endpoint=payload.endpoint, p256dh=payload.p256dh, auth=payload.auth)
+        )
+    await session.commit()
+    return {"message": "Push subscription saved", "configured": vapid_configured()}
+
+
+@router.post("/push/unsubscribe")
+async def push_unsubscribe(
+    payload: PushSubscribeIn, session: AsyncSession = Depends(profile_session)
+):
+    existing = (
+        (
+            await session.execute(
+                select(PushSubscription).where(PushSubscription.endpoint == payload.endpoint)
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if existing:
+        await session.delete(existing)
+        await session.commit()
+    return {"message": "Push subscription removed"}
 
 
 def _norm_currency(v: str) -> str:
@@ -174,6 +233,12 @@ async def _fire_alert_if_hit(session: AsyncSession, h: Holding, price: Decimal) 
         )
     )
     notify_alert_fired(h.symbol, direction, price, target, h.id)
+    arrow = ">=" if direction == "above" else "<="
+    await send_push_alerts(
+        session,
+        f"Reign alert: {h.symbol} {arrow} {target}",
+        f"{h.symbol} hit {price}.",
+    )
 
 
 @router.get("/{holding_id}/history")

@@ -1107,6 +1107,7 @@ async function renderInvest(container) {
         <h3 class="text-sm font-semibold dark:text-gray-200">Add / Refresh</h3>
         <button onclick="refreshAllPrices()" class="text-sm px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500">Refresh prices</button>
         <button onclick="downloadHoldingsPdf()" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Export PDF</button>
+        <button onclick="togglePushSubscription()" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Aktifkan notifikasi push</button>
       </div>
       <form onsubmit="createHolding(event)" class="flex gap-3 flex-wrap">
         <input name="symbol" placeholder="Symbol (e.g. BBCA)" class="border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-3 py-2 text-sm" required>
@@ -1147,6 +1148,57 @@ async function renderInvest(container) {
   `;
   loadSparklines();
   drawAllocChart(alloc);
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+
+async function togglePushSubscription() {
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      alert('Push tidak didukung browser ini');
+      return;
+    }
+    const cfg = await apiGet('/api/holdings/push/vapid-key');
+    if (!cfg.configured) {
+      alert('Push belum dikonfigurasi server (VAPID)');
+      return;
+    }
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      await sub.unsubscribe();
+      await apiPost('/api/holdings/push/unsubscribe', {
+        endpoint: sub.endpoint,
+        p256dh: 'x',
+        auth: 'xxxxx',
+      }).catch(() => {});
+      alert('Notifikasi push dimatikan');
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      alert('Izin notifikasi ditolak');
+      return;
+    }
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(cfg.publicKey),
+    });
+    const keys = sub.toJSON().keys || {};
+    await apiPost('/api/holdings/push/subscribe', {
+      endpoint: sub.endpoint,
+      p256dh: keys.p256dh || '',
+      auth: keys.auth || '',
+    });
+    alert('Notifikasi push aktif');
+  } catch (e) {
+    alert('Push gagal: ' + e.message);
+  }
 }
 
 async function createHolding(e) {

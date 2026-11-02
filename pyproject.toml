@@ -14,6 +14,7 @@ dependencies = [
     "reportlab>=4.2.0",
     "python-multipart>=0.0.17",
     "ofxparse>=0.21",
+    "pywebpush>=2.5.0",
 ]
 
 [project.scripts]
