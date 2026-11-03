@@ -1,5 +1,11 @@
 # Changelog — Reign
 
+## v0.13.0 — Sankey pemasukan, filter bulan, PDF bilingual (2026-11-03)
+
+- Drill-down pemasukan + filter bulan/tahun Sankey, drill + PDF ikut periode (PR #113, closes #111)
+- PDF Sankey bilingual: tombol PDF ID/EN + header From/To + Monthly Report (PR #114, closes #112)
+- Suite: 115 passed + 1 skipped, ruff bersih, JS valid, smoke browser hijau
+
 ## v0.12.0 — Sankey PDF, drill-down, kontras tinggi (2026-11-02)
 
 - Export Sankey ke PDF: generate_sankey_report + /sankey/pdf + tombol Dashboard (PR #107, closes #104)
