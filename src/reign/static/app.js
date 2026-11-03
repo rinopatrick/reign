@@ -1321,6 +1321,34 @@ async function drillSankey(categoryId, name) {
   }
 }
 
+function drillSaved() {
+  const el = document.getElementById('sankey-detail');
+  if (!el || !el.dataset.sankey) return;
+  try {
+    const d = JSON.parse(el.dataset.sankey);
+    const saved = d.links.find(l => l.target === 'saved');
+    if (!saved || !saved.breakdown) return;
+    const li = (items, cls) => items.map(x => `
+      <div class="flex items-center justify-between py-1 border-b dark:border-gray-700 last:border-0">
+        <span class="text-xs dark:text-gray-300">${escapeHtml(x.category)}</span>
+        <span class="text-xs font-medium tabular-nums ${cls}">${formatMoney(x.value)}</span>
+      </div>`).join('');
+    el.innerHTML = `
+      <div class="border-t dark:border-gray-700 pt-3">
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-xs font-semibold dark:text-gray-200">Sisa ${formatMoney(saved.value)} — Pemasukan ${formatMoney(d.total_in)} − Pengeluaran ${formatMoney(d.total_out)}</p>
+          <button class="text-xs text-gray-500 hover:underline" onclick="document.getElementById('sankey-detail').innerHTML='';">Tutup</button>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-2 mb-1">Pemasukan per kategori</p>
+        ${li(saved.breakdown.income, 'text-emerald-600')}
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-2 mb-1">Pengeluaran per kategori</p>
+        ${li(saved.breakdown.expense, 'text-rose-600')}
+      </div>`;
+  } catch {
+    el.innerHTML = '<p class="text-xs text-gray-400">Drill-down gagal dimuat.</p>';
+  }
+}
+
 async function downloadSankeyPdf(lang = 'id') {
   const { year, month } = sankeyPeriod();
   const r = await apiFetch(`/api/reports/sankey/pdf?year=${year}&month=${month}&lang=${lang}`);
@@ -1394,9 +1422,11 @@ async function renderSankey() {
           const drill = l.category_id ? ` <button class="text-blue-600 hover:underline" onclick="drillSankey(${l.category_id}, '${escapeHtml(name).replace(/'/g, "&#39;")}')">Lihat</button>` : '';
           return row(name + drill, l.value, '#f43f5e', pct.toFixed(1));
         }).join('')}
-        ${saved ? row('Sisa', saved.value, '#10b981', Math.max((Number(saved.value) / total) * 100, 1.5).toFixed(1)) : ''}
+        ${saved ? row('Sisa <button class="text-blue-600 hover:underline" onclick="drillSaved()">Lihat</button>', saved.value, '#10b981', Math.max((Number(saved.value) / total) * 100, 1.5).toFixed(1)) : ''}
       </div>
       <div id="sankey-detail" class="mt-3"></div>`;
+    const detail = document.getElementById('sankey-detail');
+    if (detail) detail.dataset.sankey = JSON.stringify({ links: d.links, total_in: d.total_in, total_out: d.total_out });
   } catch {
     el.innerHTML = '<p class="text-sm text-gray-400">Sankey gagal dimuat.</p>';
   }

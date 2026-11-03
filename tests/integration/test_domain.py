@@ -170,3 +170,18 @@ async def test_sankey_income_links_carry_drilldown_ids(client):
         if link["target"].startswith("in:"):
             assert link.get("category_id") is not None
             assert link.get("category") == link["target"][3:]
+
+
+@pytest.mark.asyncio
+async def test_sankey_saved_carries_breakdown(client):
+    r = await client.get("/api/reports/sankey")
+    assert r.status_code == 200
+    data = r.json()
+    saved = [x for x in data["links"] if x["target"] == "saved"]
+    if Decimal(data["total_in"]) > Decimal(data["total_out"]):
+        assert len(saved) == 1
+        bd = saved[0]["breakdown"]
+        assert sum(Decimal(x["value"]) for x in bd["income"]) == Decimal(data["total_in"])
+        assert sum(Decimal(x["value"]) for x in bd["expense"]) == Decimal(data["total_out"])
+    else:
+        assert saved == []
