@@ -1,5 +1,11 @@
 # Changelog — Reign
 
+## v0.19.0 — Free bank sync prep (2026-11-03)
+
+- Admin Fee seed category fixes bank fee fallthrough (PR #135, closes #134)
+- Read-only import preview: format plus rows, writes nothing; UI already wired to it
+- Suite: 127 passed + 1 skipped, ruff bersih, JS valid, smoke browser hijau
+
 ## v0.18.0 — Shared Reports period state (2026-11-03)
 
 - Single reportPeriod state for Sankey, monthly PDF, drilldown CSV (PR #131, closes #132)
