@@ -151,3 +151,16 @@ def test_parse_bsi():
     assert len(rows) == 2
     assert rows[0]["amount"] == -500000
     assert rows[1]["amount"] == 2000000
+
+
+def test_parse_generic_transaksi_layout():
+    btn = (
+        "Tanggal,Transaksi,Debit,Kredit\n"
+        "15/04/2026,TRSF E-BANKING DB,500000,\n"
+        "16/04/2026,SETORAN TUNAI,,2000000\n"
+    )
+    fmt, rows = parse_csv(btn)
+    assert fmt == "generic"
+    assert len(rows) == 2
+    assert rows[0]["amount"] == -500000
+    assert rows[1]["amount"] == 2000000
