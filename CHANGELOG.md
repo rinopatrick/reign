@@ -1,5 +1,12 @@
 # Changelog — Reign
 
+## v0.14.0 — Sisa drill-down, CSV drill-down, cache Sankey (2026-11-03)
+
+- Drill-down Sisa: breakdown income/expense + tombol Lihat + panel komposisi (PR #119, closes #116)
+- Ekspor CSV drill-down: /reports/drilldown.csv + tombol Unduh CSV di panel (PR #120, closes #117)
+- Cache Sankey per bulan: X-Cache HIT/MISS + invalidasi saat mutasi transaksi/restore (PR #121, closes #118)
+- Suite: 118 passed + 1 skipped, ruff bersih, JS valid, smoke browser hijau
+
 ## v0.13.0 — Sankey pemasukan, filter bulan, PDF bilingual (2026-11-03)
 
 - Drill-down pemasukan + filter bulan/tahun Sankey, drill + PDF ikut periode (PR #113, closes #111)
