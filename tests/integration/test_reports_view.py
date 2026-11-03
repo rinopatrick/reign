@@ -39,3 +39,17 @@ async def test_reports_period_change_refreshes_sankey(client):
     body = js[idx : idx + 600]
     assert "renderSankey()" in body
     assert "/api/reports/sankey" in js
+
+
+@pytest.mark.asyncio
+async def test_reports_period_single_source_of_truth(client):
+    """One shared reportPeriod state drives Sankey JSON, CSV href, and monthly PDF href."""
+    js = (await client.get("/static/app.js")).text
+    assert "function reportPeriod" in js
+    body = js[js.index("function reportPeriod") : js.index("function reportPeriod") + 800]
+    assert "reports-month" in body and "reports-year" in body
+    # Every consumer reads the one state, nobody reads selects directly.
+    for consumer in ("renderSankey", "downloadDrilldownCsv", "downloadMonthlyPdf"):
+        idx = js.index(f"function {consumer}")
+        assert "reportPeriod()" in js[idx : idx + 600]
+    assert "function sankeyPeriod" not in js

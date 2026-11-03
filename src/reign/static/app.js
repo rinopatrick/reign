@@ -1300,7 +1300,7 @@ async function drillSankey(categoryId, name) {
   const el = document.getElementById('sankey-detail');
   if (!el) return;
   try {
-    const { year, month } = sankeyPeriod();
+    const { year, month } = reportPeriod();
     const mm = String(month).padStart(2,'0');
     const start = `${year}-${mm}-01`;
     const end = `${year}-${mm}-${new Date(year, month, 0).getDate()}`;
@@ -1355,7 +1355,7 @@ function drillSaved() {
 }
 
 async function downloadSankeyPdf(lang = 'id') {
-  const { year, month } = sankeyPeriod();
+  const { year, month } = reportPeriod();
   const r = await apiFetch(`/api/reports/sankey/pdf?year=${year}&month=${month}&lang=${lang}`);
   if (!r.ok) { alert('Export Sankey gagal, coba lagi.'); return; }
   const blob = await r.blob();
@@ -1365,26 +1365,22 @@ async function downloadSankeyPdf(lang = 'id') {
   a.click();
 }
 
-function sankeyPeriod() {
-  const y = document.getElementById('sankey-year');
-  const m = document.getElementById('sankey-month');
+function reportPeriod() {
   const now = new Date();
-  return { year: y ? Number(y.value) : now.getFullYear(), month: m ? Number(m.value) : now.getMonth()+1 };
+  const pick = (ids) => {
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (el && el.value) return Number(el.value);
+    }
+    return null;
+  };
+  const year = pick(['reports-year', 'sankey-year']) ?? now.getFullYear();
+  const month = pick(['reports-month', 'sankey-month']) ?? now.getMonth()+1;
+  return { year, month };
 }
 
 function fillSankeyPeriod() {
-  const now = new Date();
-  const m = document.getElementById('sankey-month');
-  const y = document.getElementById('sankey-year');
-  if (m && !m.options.length) {
-    const names = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
-    names.forEach((n, i) => m.add(new Option(n, i+1)));
-    m.value = now.getMonth()+1;
-  }
-  if (y && !y.options.length) {
-    for (let yy = now.getFullYear()-2; yy <= now.getFullYear()+1; yy++) y.add(new Option(String(yy), yy));
-    y.value = now.getFullYear();
-  }
+  fillPeriodSelect('sankey-month', 'sankey-year');
 }
 
 async function renderSankey() {
@@ -1392,7 +1388,7 @@ async function renderSankey() {
   if (!el) return;
   try {
     fillSankeyPeriod();
-    const { year, month } = sankeyPeriod();
+    const { year, month } = reportPeriod();
     const d = await apiGet(`/api/reports/sankey?year=${year}&month=${month}`);
     if (!d.links.length) {
       el.innerHTML = '<p class="text-sm text-gray-400">Belum ada arus kas bulan ini.</p>';
@@ -1803,19 +1799,12 @@ async function generateReport() {
 }
 
 // ============== REPORTS ==============
-function reportsPeriod() {
-  const y = document.getElementById('reports-year');
-  const m = document.getElementById('reports-month');
+function fillPeriodSelect(monthId, yearId) {
   const now = new Date();
-  return { year: y ? Number(y.value) : now.getFullYear(), month: m ? Number(m.value) : now.getMonth()+1 };
-}
-
-function fillReportsPeriod() {
-  const now = new Date();
-  const m = document.getElementById('reports-month');
-  const y = document.getElementById('reports-year');
+  const m = document.getElementById(monthId);
+  const y = document.getElementById(yearId);
+  const names = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
   if (m && !m.options.length) {
-    const names = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
     names.forEach((n, i) => m.add(new Option(n, i+1)));
     m.value = now.getMonth()+1;
   }
@@ -1823,15 +1812,14 @@ function fillReportsPeriod() {
     for (let yy = now.getFullYear()-2; yy <= now.getFullYear()+1; yy++) y.add(new Option(String(yy), yy));
     y.value = now.getFullYear();
   }
-  // Mirror into legacy dashboard Sankey selects so reused renderSankey/sankeyPeriod pick up the period.
-  const sm = document.getElementById('sankey-month');
-  const sy = document.getElementById('sankey-year');
-  if (sm && m) { sm.innerHTML = m.innerHTML; sm.value = m.value; }
-  if (sy && y) { sy.innerHTML = y.innerHTML; sy.value = y.value; }
+}
+
+function fillReportsPeriod() {
+  fillPeriodSelect('reports-month', 'reports-year');
 }
 
 function onReportsPeriodChange() {
-  const { year, month } = reportsPeriod();
+  const { year, month } = reportPeriod();
   const sm = document.getElementById('sankey-month');
   const sy = document.getElementById('sankey-year');
   if (sm) sm.value = month;
@@ -1840,7 +1828,7 @@ function onReportsPeriodChange() {
 }
 
 function downloadMonthlyPdf(lang = 'id') {
-  const { year, month } = reportsPeriod();
+  const { year, month } = reportPeriod();
   const mm = String(month).padStart(2, '0');
   const a = document.createElement('a');
   a.href = `/api/reports/monthly?year=${year}&month=${month}&currency=IDR&lang=${lang}`;
@@ -1849,7 +1837,7 @@ function downloadMonthlyPdf(lang = 'id') {
 }
 
 function downloadDrilldownCsv() {
-  const { year, month } = reportsPeriod();
+  const { year, month } = reportPeriod();
   const mm = String(month).padStart(2, '0');
   const a = document.createElement('a');
   a.href = `/api/reports/drilldown.csv?start_date=${year}-${mm}-01&end_date=${year}-${mm}-${new Date(year, month, 0).getDate()}`;
