@@ -1,5 +1,6 @@
 """Seed default categories and sample data."""
 
+from collections.abc import Awaitable, Callable
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -68,7 +69,12 @@ DEFAULT_CATEGORIES = [
 ]
 
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
+
+# Ordered forward migrations: version -> async callable taking AsyncSession.
+# Runner executes every registered migrator from stored+1 to SCHEMA_VERSION
+# inside one transaction, then stamps the new version. Additive-only per ADR-001.
+MIGRATIONS: dict[int, Callable[[AsyncSession], Awaitable[None]]] = {}
 
 
 async def seed_categories(session: AsyncSession) -> None:
@@ -113,4 +119,11 @@ async def ensure_schema_version(session: AsyncSession) -> int:
             f"Database schema v{stored} is newer than app schema v{SCHEMA_VERSION}. "
             "Update the app, or restore from backup."
         )
-    return stored
+    for version in range(stored + 1, SCHEMA_VERSION + 1):
+        migrator = MIGRATIONS.get(version)
+        if migrator is not None:
+            await migrator(session)
+    row.value = str(SCHEMA_VERSION)
+    session.add(row)
+    await session.commit()
+    return SCHEMA_VERSION
