@@ -1,5 +1,11 @@
 # Changelog — Reign
 
+## v0.17.0 — Migrasi v9 + init bermigrasi (2026-11-03)
+
+- Migration v9: nullable transactions.external_id, ordered v8 to v9 upgrade (PR #129)
+- init_db runs pending migrations; legacy engine delegates to profile engine (root fix)
+- Suite: 124 passed + 1 skipped, ruff bersih, JS valid, smoke browser hijau
+
 ## v0.16.0 — Migrasi maju + Reports view (2026-11-03)
 
 - Ordered forward migrations via registry, v7 to v8 without data loss (PR #125)
