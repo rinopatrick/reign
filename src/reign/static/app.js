@@ -210,7 +210,8 @@ async function renderDashboard(container) {
         <div class="flex items-center gap-2">
           <select id="sankey-month" onchange="renderSankey()" class="text-sm border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-2 py-1.5" aria-label="Bulan Sankey"></select>
           <select id="sankey-year" onchange="renderSankey()" class="text-sm border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-2 py-1.5" aria-label="Tahun Sankey"></select>
-          <button onclick="downloadSankeyPdf()" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">Export PDF</button>
+          <button onclick="downloadSankeyPdf('id')" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">PDF ID</button>
+          <button onclick="downloadSankeyPdf('en')" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">PDF EN</button>
         </div>
       </div>
       <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Pemasukan bulan berjalan ke kategori pengeluaran dan sisa.</p>
@@ -1320,14 +1321,14 @@ async function drillSankey(categoryId, name) {
   }
 }
 
-async function downloadSankeyPdf() {
+async function downloadSankeyPdf(lang = 'id') {
   const { year, month } = sankeyPeriod();
-  const r = await apiFetch(`/api/reports/sankey/pdf?year=${year}&month=${month}`);
+  const r = await apiFetch(`/api/reports/sankey/pdf?year=${year}&month=${month}&lang=${lang}`);
   if (!r.ok) { alert('Export Sankey gagal, coba lagi.'); return; }
   const blob = await r.blob();
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'sankey.pdf';
+  a.download = `sankey_${lang}.pdf`;
   a.click();
 }
 

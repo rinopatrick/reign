@@ -137,6 +137,18 @@ async def test_sankey_pdf_readable(client):
 
 
 @pytest.mark.asyncio
+async def test_sankey_pdf_english(client):
+    r = await client.get("/api/reports/sankey/pdf?lang=en")
+    assert r.status_code == 200
+    assert (
+        "sankey_" in r.headers["content-disposition"]
+        and "_en.pdf" in r.headers["content-disposition"]
+    )
+    text = PdfReader(io.BytesIO(r.content)).pages[0].extract_text()
+    assert "From" in text and "To" in text and "Monthly Report" in text
+
+
+@pytest.mark.asyncio
 async def test_sankey_links_carry_drilldown_ids(client):
     r = await client.get("/api/reports/sankey")
     assert r.status_code == 200
