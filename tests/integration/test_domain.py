@@ -1,5 +1,6 @@
 """Domain: net-worth, calendar months, recurring forecast, 1-query budgets."""
 
+import asyncio
 import io
 from datetime import datetime
 from decimal import Decimal
@@ -9,6 +10,7 @@ from httpx import ASGITransport, AsyncClient
 from pypdf import PdfReader
 
 from reign.api.app import app
+from reign.api.routes import reports as reports_module
 
 
 @pytest.fixture
@@ -227,3 +229,21 @@ async def test_sankey_cache_hit_then_invalidate(client):
     assert r.status_code in (200, 201)
     r = await client.get("/api/reports/sankey?year=2026&month=1")
     assert r.headers.get("x-cache") == "MISS"
+
+
+@pytest.mark.asyncio
+async def test_sankey_prefetch_warms_neighbors(client):
+    reports_module._SANKEY_CACHE.clear()
+    r = await client.get("/api/reports/sankey?year=2026&month=6")
+    assert r.status_code == 200
+    assert r.headers.get("x-cache") == "MISS"
+    for _ in range(50):
+        keys = [k for k in reports_module._SANKEY_CACHE if k[1:3] in ((2026, 5), (2026, 7))]
+        if len(keys) >= 2:
+            break
+        await asyncio.sleep(0.05)
+    assert len(keys) >= 2
+    r = await client.get("/api/reports/sankey?year=2026&month=5")
+    assert r.headers.get("x-cache") == "HIT"
+    r = await client.get("/api/reports/sankey?year=2026&month=7")
+    assert r.headers.get("x-cache") == "HIT"
