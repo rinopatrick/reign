@@ -1,5 +1,10 @@
 # Changelog — Reign
 
+## v0.20.0 — BSI auto-detect (2026-11-03)
+
+- Auto-detect BSI bank statements on CSV import (PR #138, closes #137)
+- Suite: 128 passed + 1 skipped, ruff bersih, JS valid, smoke browser hijau
+
 ## v0.19.0 — Free bank sync prep (2026-11-03)
 
 - Admin Fee seed category fixes bank fee fallthrough (PR #135, closes #134)
