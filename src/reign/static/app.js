@@ -143,6 +143,7 @@ async function renderView(view) {
     else if (view === 'forecast') await renderForecast(content);
     else if (view === 'calendar') await renderCalendar(content);
     else if (view === 'recurring') await renderRecurring(content);
+    else if (view === 'reports') await renderReports(content);
     else if (view === 'settings') await renderSettings(content);
   } catch (e) {
     content.innerHTML = `<div class="text-red-500">Error: ${escapeHtml(e.message)}</div>`;
@@ -1302,7 +1303,7 @@ async function drillSankey(categoryId, name) {
     const { year, month } = sankeyPeriod();
     const mm = String(month).padStart(2,'0');
     const start = `${year}-${mm}-01`;
-    const end = `${year}-${mm}-31`;
+    const end = `${year}-${mm}-${new Date(year, month, 0).getDate()}`;
     const csvUrl = `/api/reports/drilldown.csv?category_id=${categoryId}&start_date=${start}&end_date=${end}`;
     const txs = await apiGet(`/api/transactions?category_id=${categoryId}&start_date=${start}&end_date=${end}&limit=50`);
     el.innerHTML = `
@@ -1402,9 +1403,9 @@ async function renderSankey() {
     const saved = d.links.find(l => l.target === 'saved');
     const total = Math.max(Number(d.total_in), 0.0001);
     const H = 26;
-    const row = (label, val, color, wPct) => `
+    const row = (label, val, color, wPct, action = '') => `
       <div class="flex items-center gap-2 mb-1.5">
-        <span class="text-xs text-gray-500 dark:text-gray-400 w-32 truncate" title="${escapeHtml(label)}">${escapeHtml(label)}</span>
+        <span class="text-xs text-gray-500 dark:text-gray-400 w-32 truncate" title="${escapeHtml(label)}">${escapeHtml(label)}${action}</span>
         <div class="flex-1 h-[${H}px] bg-gray-100 dark:bg-gray-700 rounded overflow-hidden">
           <div class="h-full rounded" style="width:${wPct}%;background:${color}"></div>
         </div>
@@ -1417,16 +1418,16 @@ async function renderSankey() {
           const name = l.category || l.target.slice(3);
           const pct = Math.max((Number(l.value) / total) * 100, 1.5);
           const drill = l.category_id ? ` <button class="text-blue-600 hover:underline" onclick="drillSankey(${l.category_id}, '${escapeHtml(name).replace(/'/g, "&#39;")}', true)">Lihat</button>` : '';
-          return row(name + drill, l.value, '#10b981', pct.toFixed(1));
+          return row(name, l.value, '#10b981', pct.toFixed(1), drill);
         }).join('')}
         <p class="text-xs font-semibold text-rose-700 dark:text-rose-400 mt-3 mb-2">Pengeluaran ${formatMoney(d.total_out)}</p>
         ${outs.map(l => {
           const name = l.category || l.target.slice(4);
           const pct = Math.max((Number(l.value) / total) * 100, 1.5);
           const drill = l.category_id ? ` <button class="text-blue-600 hover:underline" onclick="drillSankey(${l.category_id}, '${escapeHtml(name).replace(/'/g, "&#39;")}')">Lihat</button>` : '';
-          return row(name + drill, l.value, '#f43f5e', pct.toFixed(1));
+          return row(name, l.value, '#f43f5e', pct.toFixed(1), drill);
         }).join('')}
-        ${saved ? row('Sisa <button class="text-blue-600 hover:underline" onclick="drillSaved()">Lihat</button>', saved.value, '#10b981', Math.max((Number(saved.value) / total) * 100, 1.5).toFixed(1)) : ''}
+        ${saved ? row('Sisa', saved.value, '#10b981', Math.max((Number(saved.value) / total) * 100, 1.5).toFixed(1), ' <button class="text-blue-600 hover:underline" onclick="drillSaved()">Lihat</button>') : ''}
       </div>
       <div id="sankey-detail" class="mt-3"></div>`;
     const detail = document.getElementById('sankey-detail');
@@ -1799,6 +1800,98 @@ async function generateReport() {
   a.href = URL.createObjectURL(blob);
   a.download = `report_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}_IDR.pdf`;
   a.click();
+}
+
+// ============== REPORTS ==============
+function reportsPeriod() {
+  const y = document.getElementById('reports-year');
+  const m = document.getElementById('reports-month');
+  const now = new Date();
+  return { year: y ? Number(y.value) : now.getFullYear(), month: m ? Number(m.value) : now.getMonth()+1 };
+}
+
+function fillReportsPeriod() {
+  const now = new Date();
+  const m = document.getElementById('reports-month');
+  const y = document.getElementById('reports-year');
+  if (m && !m.options.length) {
+    const names = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+    names.forEach((n, i) => m.add(new Option(n, i+1)));
+    m.value = now.getMonth()+1;
+  }
+  if (y && !y.options.length) {
+    for (let yy = now.getFullYear()-2; yy <= now.getFullYear()+1; yy++) y.add(new Option(String(yy), yy));
+    y.value = now.getFullYear();
+  }
+  // Mirror into legacy dashboard Sankey selects so reused renderSankey/sankeyPeriod pick up the period.
+  const sm = document.getElementById('sankey-month');
+  const sy = document.getElementById('sankey-year');
+  if (sm && m) { sm.innerHTML = m.innerHTML; sm.value = m.value; }
+  if (sy && y) { sy.innerHTML = y.innerHTML; sy.value = y.value; }
+}
+
+function onReportsPeriodChange() {
+  const { year, month } = reportsPeriod();
+  const sm = document.getElementById('sankey-month');
+  const sy = document.getElementById('sankey-year');
+  if (sm) sm.value = month;
+  if (sy) sy.value = year;
+  renderSankey();
+}
+
+function downloadMonthlyPdf(lang = 'id') {
+  const { year, month } = reportsPeriod();
+  const mm = String(month).padStart(2, '0');
+  const a = document.createElement('a');
+  a.href = `/api/reports/monthly?year=${year}&month=${month}&currency=IDR&lang=${lang}`;
+  a.download = `report_${year}${mm}_IDR_${lang}.pdf`;
+  a.click();
+}
+
+function downloadDrilldownCsv() {
+  const { year, month } = reportsPeriod();
+  const mm = String(month).padStart(2, '0');
+  const a = document.createElement('a');
+  a.href = `/api/reports/drilldown.csv?start_date=${year}-${mm}-01&end_date=${year}-${mm}-${new Date(year, month, 0).getDate()}`;
+  a.download = `drilldown_${year}${mm}.csv`;
+  a.click();
+}
+
+async function renderReports(container) {
+  container.innerHTML = `
+    <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-5 shadow-sm mb-6">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <h3 class="text-sm font-semibold dark:text-gray-200">Reports</h3>
+        <div class="flex items-center gap-2">
+          <select id="reports-month" onchange="onReportsPeriodChange()" aria-label="Bulan laporan" class="text-sm border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-2 py-1.5"></select>
+          <select id="reports-year" onchange="onReportsPeriodChange()" aria-label="Tahun laporan" class="text-sm border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-2 py-1.5"></select>
+        </div>
+      </div>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Periode laporan (IDR). Perubahan periode memuat ulang Sankey.</p>
+      <div class="flex items-center gap-2 flex-wrap mt-3">
+        <button onclick="downloadMonthlyPdf('id')" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Monthly PDF ID</button>
+        <button onclick="downloadMonthlyPdf('en')" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Monthly PDF EN</button>
+        <button onclick="downloadSankeyPdf('id')" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Sankey PDF ID</button>
+        <button onclick="downloadSankeyPdf('en')" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Sankey PDF EN</button>
+        <button onclick="downloadHoldingsPdf('id')" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Holdings PDF ID</button>
+        <button onclick="downloadHoldingsPdf('en')" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Holdings PDF EN</button>
+        <button onclick="downloadDrilldownCsv()" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">Drilldown CSV</button>
+      </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-5 shadow-sm">
+      <div class="flex items-center justify-between mb-1 flex-wrap gap-2">
+        <h3 class="text-sm font-semibold dark:text-gray-200">Arus Kas (Sankey)</h3>
+        <div class="flex items-center gap-2">
+          <select id="sankey-month" onchange="renderSankey()" class="hidden" aria-label="Bulan Sankey"></select>
+          <select id="sankey-year" onchange="renderSankey()" class="hidden" aria-label="Tahun Sankey"></select>
+        </div>
+      </div>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Pemasukan bulan berjalan ke kategori pengeluaran dan sisa.</p>
+      <div id="sankey" class="overflow-x-auto"></div>
+    </div>
+  `;
+  fillReportsPeriod();
+  await renderSankey();
 }
 
 // ============== SETTINGS ==============
