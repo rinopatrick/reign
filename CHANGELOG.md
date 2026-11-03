@@ -1,5 +1,10 @@
 # Changelog — Reign
 
+## v0.22.0 — Generic Transaksi layout (2026-11-03)
+
+- Generic fallback covers Transaksi plus Kredit layouts with correct signs (PR #144, closes #143)
+- Suite: 130 passed + 1 skipped, ruff bersih, JS valid, smoke browser hijau
+
 ## v0.21.0 — Import dedupe (2026-11-03)
 
 - Statement fingerprint into external_id, repeat imports skip (PR #141, closes #140)
