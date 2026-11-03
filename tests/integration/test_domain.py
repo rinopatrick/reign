@@ -202,3 +202,28 @@ async def test_drilldown_csv_matches_filter(client):
         assert r.status_code == 200
         body = r.text.strip().splitlines()
         assert body[0].startswith("id,date,")
+
+
+@pytest.mark.asyncio
+async def test_sankey_cache_hit_then_invalidate(client):
+    r = await client.get("/api/reports/sankey?year=2026&month=1")
+    assert r.status_code == 200
+    assert r.headers.get("x-cache") == "MISS"
+    first = r.json()
+    r = await client.get("/api/reports/sankey?year=2026&month=1")
+    assert r.headers.get("x-cache") == "HIT"
+    assert r.json() == first
+    acc = (await client.get("/api/accounts")).json()[0]
+    r = await client.post(
+        "/api/transactions",
+        json={
+            "description": "cache-bust",
+            "amount": 10,
+            "currency": "IDR",
+            "account_id": acc["id"],
+            "date": "2026-01-15",
+        },
+    )
+    assert r.status_code in (200, 201)
+    r = await client.get("/api/reports/sankey?year=2026&month=1")
+    assert r.headers.get("x-cache") == "MISS"

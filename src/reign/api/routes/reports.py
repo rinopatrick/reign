@@ -8,7 +8,7 @@ from decimal import Decimal
 from io import BytesIO
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from reign.adapters.database import validate_slug
@@ -75,17 +75,39 @@ async def monthly_report(
     )
 
 
+_SANKEY_CACHE: dict[tuple, tuple] = {}
+_SANKEY_VERSION: dict[str, int] = {}
+
+
+def bump_sankey_cache(profile: str) -> None:
+    """Invalidate cached Sankey payloads for one profile."""
+    _SANKEY_VERSION[profile] = _SANKEY_VERSION.get(profile, 0) + 1
+
+
 @router.get("/sankey")
 async def sankey(
+    request: Request,
     year: int | None = None,
     month: int | None = None,
     currency: str = "IDR",
     session: AsyncSession = Depends(profile_session),
 ):
     """Cash-flow Sankey nodes/links: income categories -> expense categories + remainder."""
+    slug = validate_slug(request.headers.get("x-reign-profile", "") or "default")
     now = datetime.now()
     year = year or now.year
     month = month or now.month
+    version = _SANKEY_VERSION.get(slug, 0)
+    key = (slug, year, month, currency, version)
+    if key in _SANKEY_CACHE:
+        return JSONResponse(content=_SANKEY_CACHE[key], headers={"X-Cache": "HIT"})
+    data = await _compute_sankey(session, year, month, currency)
+    _SANKEY_CACHE[key] = data
+    return JSONResponse(content=data, headers={"X-Cache": "MISS"})
+
+
+async def _compute_sankey(session: AsyncSession, year: int, month: int, currency: str) -> dict:
+    """Uncached Sankey payload (shared by the endpoint and the PDF export)."""
     tx_repo = TransactionRepository(session)
     income_cats = await tx_repo.get_income_by_category(year, month, currency)
     expense_cats = await tx_repo.get_category_totals(year, month, currency)
@@ -155,7 +177,8 @@ async def sankey_pdf(
     session: AsyncSession = Depends(profile_session),
 ):
     """Sankey cash-flow PDF for the active month."""
-    data = await sankey(year=year, month=month, currency=currency, session=session)
+    now = datetime.now()
+    data = await _compute_sankey(session, year or now.year, month or now.month, currency)
     pdf_bytes = generate_sankey_report(data, lang=lang if lang in ("id", "en") else "id")
     filename = f"sankey_{data['year']}{int(data['month']):02d}_{lang}.pdf"
     return StreamingResponse(
