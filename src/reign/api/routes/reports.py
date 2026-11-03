@@ -113,7 +113,22 @@ async def sankey(
         for name, v in expense_cats
     ]
     if remainder > 0:
-        links.append({"source": "income", "target": "saved", "value": str(remainder)})
+        links.append(
+            {
+                "source": "income",
+                "target": "saved",
+                "value": str(remainder),
+                "breakdown": {
+                    "income": [
+                        {"category": name, "value": str(Decimal(str(v)))} for name, v in income_cats
+                    ],
+                    "expense": [
+                        {"category": name, "value": str(abs(Decimal(str(v))))}
+                        for name, v in expense_cats
+                    ],
+                },
+            }
+        )
     return {
         "year": year,
         "month": month,
