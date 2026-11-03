@@ -1,5 +1,10 @@
 # Changelog — Reign
 
+## v0.15.0 — Prefetch cache Sankey (2026-11-03)
+
+- Prefetch neighbor months into Sankey cache after MISS (PR #123)
+- Suite: 119 passed + 1 skipped, ruff bersih, JS valid, smoke browser hijau
+
 ## v0.14.0 — Sisa drill-down, CSV drill-down, cache Sankey (2026-11-03)
 
 - Drill-down Sisa: breakdown income/expense + tombol Lihat + panel komposisi (PR #119, closes #116)
