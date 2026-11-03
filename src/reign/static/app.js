@@ -1976,7 +1976,7 @@ async function renderSettings(container) {
         </h3>
         <div class="space-y-2 text-sm text-gray-600 dark:text-gray-300">
           <p><strong>Reign</strong> &mdash; Local-first personal finance tracker.</p>
-          <p>Version 0.17.0</p>
+          <p>Version 0.18.0</p>
           <p>Your data is stored locally in <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">reign.db</code>. No cloud, no accounts, no subscriptions.</p>
         </div>
       </div>
