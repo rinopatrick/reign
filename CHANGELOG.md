@@ -1,5 +1,10 @@
 # Changelog — Reign
 
+## v0.23.0 — Cross-file dedupe guard (2026-11-03)
+
+- Regression guard: overlapping statements import unique rows only (PR #147, closes #146)
+- Suite: 131 passed + 1 skipped, ruff bersih, JS valid, smoke browser hijau
+
 ## v0.22.0 — Generic Transaksi layout (2026-11-03)
 
 - Generic fallback covers Transaksi plus Kredit layouts with correct signs (PR #144, closes #143)
