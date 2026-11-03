@@ -5,12 +5,13 @@ import io
 import json
 from datetime import date as date_cls
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from reign.adapters.database import validate_slug
 from reign.adapters.repository import (
     AccountRepository,
     CategoryRepository,
@@ -18,6 +19,7 @@ from reign.adapters.repository import (
     TransactionRepository,
 )
 from reign.api.routes.profiles import profile_session
+from reign.api.routes.reports import bump_sankey_cache
 from reign.api.schemas import (
     BulkIds,
     BulkUpdate,
@@ -38,6 +40,12 @@ from reign.services.reconcile import reconcile_statement
 from reign.services.uploads import read_limited_upload
 
 router = APIRouter()
+
+
+def _bump_sankey(request: Request) -> None:
+    """Invalidate the profile's Sankey cache after a transaction mutation."""
+    bump_sankey_cache(validate_slug(request.headers.get("x-reign-profile", "") or "default"))
+
 
 MAX_RECONCILE_TOLERANCE_DAYS = 30
 
@@ -64,7 +72,9 @@ async def list_transactions(
 
 @router.post("", response_model=TransactionOut, status_code=201)
 async def create_transaction(
-    data: TransactionCreate, session: AsyncSession = Depends(profile_session)
+    data: TransactionCreate,
+    request: Request,
+    session: AsyncSession = Depends(profile_session),
 ):
     try:
         await AccountRepository(session).get(data.account_id)
@@ -82,7 +92,9 @@ async def create_transaction(
             )
             for s in data.splits
         ]
-    return await repo.create(tx, splits=splits)
+    out = await repo.create(tx, splits=splits)
+    _bump_sankey(request)
+    return out
 
 
 @router.get("/{transaction_id}", response_model=TransactionOut)
@@ -105,6 +117,7 @@ async def get_transaction(transaction_id: int, session: AsyncSession = Depends(p
 async def update_transaction(
     transaction_id: int,
     data: TransactionCreate,
+    request: Request,
     session: AsyncSession = Depends(profile_session),
 ):
     try:
@@ -124,13 +137,19 @@ async def update_transaction(
             for s in data.splits
         ]
     try:
-        return await repo.update(transaction_id, update_data, splits=splits)
+        out = await repo.update(transaction_id, update_data, splits=splits)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+    _bump_sankey(request)
+    return out
 
 
 @router.post("/transfer", status_code=201)
-async def create_transfer(data: TransferCreate, session: AsyncSession = Depends(profile_session)):
+async def create_transfer(
+    data: TransferCreate,
+    request: Request,
+    session: AsyncSession = Depends(profile_session),
+):
     """Create a transfer between two accounts."""
     if data.from_account_id == data.to_account_id:
         raise HTTPException(status_code=400, detail="Transfer accounts must differ")
@@ -159,6 +178,7 @@ async def create_transfer(data: TransferCreate, session: AsyncSession = Depends(
         tags="transfer",
     )
     from_tx, to_tx = await repo.create_transfer(from_tx, to_tx)
+    _bump_sankey(request)
     return {
         "message": "Transfer created",
         "from_transaction": TransactionOut.model_validate(from_tx),
@@ -167,26 +187,37 @@ async def create_transfer(data: TransferCreate, session: AsyncSession = Depends(
 
 
 @router.delete("/{transaction_id}")
-async def delete_transaction(transaction_id: int, session: AsyncSession = Depends(profile_session)):
+async def delete_transaction(
+    transaction_id: int,
+    request: Request,
+    session: AsyncSession = Depends(profile_session),
+):
     repo = TransactionRepository(session)
     try:
         await repo.delete(transaction_id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+    _bump_sankey(request)
     return {"message": "Transaction deleted"}
 
 
 @router.post("/bulk-delete")
-async def bulk_delete(data: BulkIds, session: AsyncSession = Depends(profile_session)):
+async def bulk_delete(
+    data: BulkIds, request: Request, session: AsyncSession = Depends(profile_session)
+):
     repo = TransactionRepository(session)
     await repo.bulk_delete(data.ids)
+    _bump_sankey(request)
     return {"message": f"Deleted {len(data.ids)} transactions"}
 
 
 @router.post("/bulk-reconcile")
-async def bulk_reconcile(data: BulkIds, session: AsyncSession = Depends(profile_session)):
+async def bulk_reconcile(
+    data: BulkIds, request: Request, session: AsyncSession = Depends(profile_session)
+):
     repo = TransactionRepository(session)
     await repo.bulk_reconcile(data.ids)
+    _bump_sankey(request)
     return {"message": f"Reconciled {len(data.ids)} transactions"}
 
 

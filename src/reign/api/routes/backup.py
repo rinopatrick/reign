@@ -32,6 +32,7 @@ from reign.adapters.repository import (
 )
 from reign.api.routes.holdings import _fire_alert_if_hit
 from reign.api.routes.profiles import _profiles_root
+from reign.api.routes.reports import bump_sankey_cache
 from reign.config import settings
 from reign.domain.models import (
     Budget,
@@ -450,6 +451,7 @@ async def import_backup(request: Request, file: UploadFile = File(...), *, dry_r
             logger.exception("Restore failed, rolled back: %s", e)
             raise HTTPException(status_code=422, detail="Restore failed, no data changed") from e
 
+    bump_sankey_cache(profile)
     return {
         "message": "Restore complete",
         "accounts": counts["accounts"],
@@ -528,4 +530,5 @@ async def import_profile(payload: ProfileTransferIn, request: Request):
             await ts.rollback()
             logger.exception("Profile import failed, rolled back: %s", e)
             raise HTTPException(status_code=422, detail="Profile import failed") from e
+    bump_sankey_cache(target)
     return {"message": "Profile imported", "from": source, "to": target, "snapshot": snapshot_path}
