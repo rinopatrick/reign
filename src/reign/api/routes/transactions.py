@@ -1,6 +1,7 @@
 """Transaction API routes."""
 
 import csv
+import hashlib
 import io
 import json
 from datetime import date as date_cls
@@ -325,16 +326,27 @@ async def import_csv(
 
     repo = TransactionRepository(session)
     transactions = _build_transactions(parsed, account_id)
+    existing = await repo.existing_external_ids(
+        account_id, [t.external_id for t in transactions if t.external_id]
+    )
+    fresh = [t for t in transactions if t.external_id not in existing]
+    skipped = len(transactions) - len(fresh)
 
-    if transactions:
-        await categorize_transactions(session, transactions)
-        await repo.create_many(transactions)
+    if fresh:
+        await categorize_transactions(session, fresh)
+        await repo.create_many(fresh)
 
     return CSVImportResponse(
-        imported=len(transactions),
-        skipped=0,
-        message=f"Imported {len(transactions)} transactions from {fmt} format.",
+        imported=len(fresh),
+        skipped=skipped,
+        message=f"Imported {len(fresh)} transactions from {fmt} format.",
     )
+
+
+def _statement_fingerprint(account_id: int, date_val, description: str, amount) -> str:
+    """Stable identity for one statement row, used for import dedupe."""
+    raw = f"{account_id}|{date_val}|{description.strip().lower()}|{amount}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:64]
 
 
 def _build_transactions(parsed: list[dict], account_id: int) -> list[Transaction]:
@@ -350,6 +362,9 @@ def _build_transactions(parsed: list[dict], account_id: int) -> list[Transaction
                 amount=item["amount"],
                 currency=item.get("currency", "IDR"),
                 account_id=account_id,
+                external_id=_statement_fingerprint(
+                    account_id, date_val, item["description"], item["amount"]
+                ),
             )
         )
     return transactions

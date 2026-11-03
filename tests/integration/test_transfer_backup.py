@@ -76,3 +76,40 @@ async def test_import_preview_is_read_only(client):
     assert data["preview"][0]["description"] == "STARBUCKS JAKARTA"
     r = await client.get("/api/transactions?limit=100")
     assert all(t["description"] != "STARBUCKS JAKARTA" for t in r.json())
+
+
+@pytest.mark.asyncio
+async def test_import_same_file_twice_skips_duplicates(client):
+    r = await client.get("/api/accounts")
+    acc = r.json()[0]
+    csv_body = "Tanggal,Keterangan,Mutasi\n15/04/2026,STARBUCKS JAKARTA,-75000\n"
+
+    def files():
+        return {"file": ("bca.csv", io.BytesIO(csv_body.encode()), "text/csv")}
+
+    r = await client.post(
+        "/api/transactions/import", params={"account_id": acc["id"]}, files=files()
+    )
+    assert r.status_code == 200
+    assert r.json()["imported"] == 1
+    before = len(
+        [
+            t
+            for t in (await client.get("/api/transactions?limit=100")).json()
+            if t["account_id"] == acc["id"]
+        ]
+    )
+    r = await client.post(
+        "/api/transactions/import", params={"account_id": acc["id"]}, files=files()
+    )
+    assert r.status_code == 200
+    assert r.json()["imported"] == 0
+    assert r.json()["skipped"] >= 1
+    after = len(
+        [
+            t
+            for t in (await client.get("/api/transactions?limit=100")).json()
+            if t["account_id"] == acc["id"]
+        ]
+    )
+    assert after == before
