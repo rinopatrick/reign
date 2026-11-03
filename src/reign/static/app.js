@@ -207,7 +207,11 @@ async function renderDashboard(container) {
     <div class="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-5 shadow-sm mb-6">
       <div class="flex items-center justify-between mb-1 flex-wrap gap-2">
         <h3 class="text-sm font-semibold dark:text-gray-200">Arus Kas (Sankey)</h3>
-        <button onclick="downloadSankeyPdf()" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">Export PDF</button>
+        <div class="flex items-center gap-2">
+          <select id="sankey-month" onchange="renderSankey()" class="text-sm border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-2 py-1.5" aria-label="Bulan Sankey"></select>
+          <select id="sankey-year" onchange="renderSankey()" class="text-sm border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded-lg px-2 py-1.5" aria-label="Tahun Sankey"></select>
+          <button onclick="downloadSankeyPdf()" class="text-sm px-3 py-1.5 border dark:border-gray-600 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">Export PDF</button>
+        </div>
       </div>
       <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Pemasukan bulan berjalan ke kategori pengeluaran dan sisa.</p>
       <div id="sankey" class="overflow-x-auto"></div>
@@ -1294,9 +1298,10 @@ async function drillSankey(categoryId, name) {
   const el = document.getElementById('sankey-detail');
   if (!el) return;
   try {
-    const now = new Date();
-    const start = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
-    const end = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-31`;
+    const { year, month } = sankeyPeriod();
+    const mm = String(month).padStart(2,'0');
+    const start = `${year}-${mm}-01`;
+    const end = `${year}-${mm}-31`;
     const txs = await apiGet(`/api/transactions?category_id=${categoryId}&start_date=${start}&end_date=${end}&limit=50`);
     el.innerHTML = `
       <div class="border-t dark:border-gray-700 pt-3">
@@ -1316,8 +1321,8 @@ async function drillSankey(categoryId, name) {
 }
 
 async function downloadSankeyPdf() {
-  const now = new Date();
-  const r = await apiFetch(`/api/reports/sankey/pdf?year=${now.getFullYear()}&month=${now.getMonth()+1}`);
+  const { year, month } = sankeyPeriod();
+  const r = await apiFetch(`/api/reports/sankey/pdf?year=${year}&month=${month}`);
   if (!r.ok) { alert('Export Sankey gagal, coba lagi.'); return; }
   const blob = await r.blob();
   const a = document.createElement('a');
@@ -1326,16 +1331,40 @@ async function downloadSankeyPdf() {
   a.click();
 }
 
+function sankeyPeriod() {
+  const y = document.getElementById('sankey-year');
+  const m = document.getElementById('sankey-month');
+  const now = new Date();
+  return { year: y ? Number(y.value) : now.getFullYear(), month: m ? Number(m.value) : now.getMonth()+1 };
+}
+
+function fillSankeyPeriod() {
+  const now = new Date();
+  const m = document.getElementById('sankey-month');
+  const y = document.getElementById('sankey-year');
+  if (m && !m.options.length) {
+    const names = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+    names.forEach((n, i) => m.add(new Option(n, i+1)));
+    m.value = now.getMonth()+1;
+  }
+  if (y && !y.options.length) {
+    for (let yy = now.getFullYear()-2; yy <= now.getFullYear()+1; yy++) y.add(new Option(String(yy), yy));
+    y.value = now.getFullYear();
+  }
+}
+
 async function renderSankey() {
   const el = document.getElementById('sankey');
   if (!el) return;
   try {
-    const now = new Date();
-    const d = await apiGet(`/api/reports/sankey?year=${now.getFullYear()}&month=${now.getMonth()+1}`);
+    fillSankeyPeriod();
+    const { year, month } = sankeyPeriod();
+    const d = await apiGet(`/api/reports/sankey?year=${year}&month=${month}`);
     if (!d.links.length) {
       el.innerHTML = '<p class="text-sm text-gray-400">Belum ada arus kas bulan ini.</p>';
       return;
     }
+    const ins = d.links.filter(l => l.target.startsWith('in:'));
     const outs = d.links.filter(l => l.target.startsWith('out:'));
     const saved = d.links.find(l => l.target === 'saved');
     const total = Math.max(Number(d.total_in), 0.0001);
@@ -1351,6 +1380,13 @@ async function renderSankey() {
     el.innerHTML = `
       <div class="min-w-[320px]">
         <p class="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mb-2">Pemasukan ${formatMoney(d.total_in)}</p>
+        ${ins.map(l => {
+          const name = l.category || l.target.slice(3);
+          const pct = Math.max((Number(l.value) / total) * 100, 1.5);
+          const drill = l.category_id ? ` <button class="text-blue-600 hover:underline" onclick="drillSankey(${l.category_id}, '${escapeHtml(name).replace(/'/g, "&#39;")}', true)">Lihat</button>` : '';
+          return row(name + drill, l.value, '#10b981', pct.toFixed(1));
+        }).join('')}
+        <p class="text-xs font-semibold text-rose-700 dark:text-rose-400 mt-3 mb-2">Pengeluaran ${formatMoney(d.total_out)}</p>
         ${outs.map(l => {
           const name = l.category || l.target.slice(4);
           const pct = Math.max((Number(l.value) / total) * 100, 1.5);
