@@ -27,7 +27,7 @@ async def test_categories_seeded(client):
     r = await client.get("/api/categories")
     assert r.status_code == 200
     data = r.json()
-    assert len(data) == 10
+    assert len(data) == 11
     assert any(c["name"] == "Food" for c in data)
 
 

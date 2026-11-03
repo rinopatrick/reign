@@ -2,6 +2,7 @@
 
 from reign.domain.models import Category
 from reign.services.categorizer import match_category
+from reign.utils.seed import DEFAULT_CATEGORIES
 
 
 def _cat(id_, name, keywords):
@@ -26,3 +27,13 @@ def test_match_best_score_wins():
 def test_match_case_insensitive():
     cats = [_cat(1, "Food", "Starbucks")]
     assert match_category("starbucks indonesia", cats) == 1
+
+
+def test_match_admin_fee_keywords():
+    cats = [
+        Category(id=i, name=c["name"], type=c["type"], color=c["color"], keywords=c["keywords"])
+        for i, c in enumerate(DEFAULT_CATEGORIES, start=1)
+    ]
+    admin = next(c.id for c in cats if "admin" in c.name.lower() or "fee" in c.name.lower())
+    assert match_category("BIAYA ADMIN BULANAN", cats) == admin
+    assert match_category("MONTHLY MAINTENANCE FEE", cats) == admin
