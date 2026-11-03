@@ -3,7 +3,7 @@
 from collections.abc import Awaitable, Callable
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from reign.domain.models import Account, AppSetting, Category
@@ -69,12 +69,24 @@ DEFAULT_CATEGORIES = [
 ]
 
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 # Ordered forward migrations: version -> async callable taking AsyncSession.
 # Runner executes every registered migrator from stored+1 to SCHEMA_VERSION
 # inside one transaction, then stamps the new version. Additive-only per ADR-001.
 MIGRATIONS: dict[int, Callable[[AsyncSession], Awaitable[None]]] = {}
+
+
+async def _migrate_to_v9_add_transaction_external_id(session: AsyncSession) -> None:
+    """Add nullable transactions.external_id for future bank-sync dedupe."""
+    cols = [
+        row[1] for row in (await session.execute(text("PRAGMA table_info(transactions)"))).all()
+    ]
+    if "external_id" not in cols:
+        await session.execute(text("ALTER TABLE transactions ADD COLUMN external_id VARCHAR(100)"))
+
+
+MIGRATIONS[9] = _migrate_to_v9_add_transaction_external_id
 
 
 async def seed_categories(session: AsyncSession) -> None:

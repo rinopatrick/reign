@@ -64,6 +64,7 @@ class Transaction(Base):
 
     account: Mapped["Account"] = relationship(back_populates="transactions")
     category: Mapped[Optional["Category"]] = relationship(back_populates="transactions")
+    external_id: Mapped[str | None] = mapped_column(String(100), nullable=True, default=None)
     splits: Mapped[list["TransactionSplit"]] = relationship(
         back_populates="transaction", cascade="all, delete-orphan"
     )
