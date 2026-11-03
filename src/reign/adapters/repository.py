@@ -214,6 +214,17 @@ class TransactionRepository:
         self._session.add_all(transactions)
         await self._session.commit()
 
+    async def existing_external_ids(self, account_id: int, external_ids: list[str]) -> set[str]:
+        """External ids already stored for one account (import dedupe)."""
+        if not external_ids:
+            return set()
+        result = await self._session.execute(
+            select(Transaction.external_id)
+            .where(Transaction.account_id == account_id)
+            .where(Transaction.external_id.in_(external_ids))
+        )
+        return {row for row in result.scalars().all() if row}
+
     async def delete(self, transaction_id: int) -> None:
         tx = await self._session.get(Transaction, transaction_id)
         if not tx:
