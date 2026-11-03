@@ -1,5 +1,10 @@
 # Changelog — Reign
 
+## v0.21.0 — Import dedupe (2026-11-03)
+
+- Statement fingerprint into external_id, repeat imports skip (PR #141, closes #140)
+- Suite: 129 passed + 1 skipped, ruff bersih, JS valid, smoke browser hijau
+
 ## v0.20.0 — BSI auto-detect (2026-11-03)
 
 - Auto-detect BSI bank statements on CSV import (PR #138, closes #137)
