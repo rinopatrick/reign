@@ -1,5 +1,12 @@
 # Changelog — Reign
 
+## v0.16.0 — Migrasi maju + Reports view (2026-11-03)
+
+- Ordered forward migrations via registry, v7 to v8 without data loss (PR #125)
+- Reports view wiring existing monthly, Sankey, holdings, drilldown backends (PR #126)
+- Fixed Sankey action escaping and invalid month-end dates found in browser smoke
+- Suite: 123 passed + 1 skipped, ruff bersih, JS valid, smoke browser hijau
+
 ## v0.15.0 — Prefetch cache Sankey (2026-11-03)
 
 - Prefetch neighbor months into Sankey cache after MISS (PR #123)
