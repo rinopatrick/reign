@@ -1,5 +1,6 @@
 """Report generation routes."""
 
+import asyncio
 import csv
 import dataclasses
 import io
@@ -11,13 +12,14 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from reign.adapters.database import validate_slug
+from reign.adapters.database import get_session_factory, validate_slug
 from reign.adapters.repository import (
     HoldingRepository,
     TransactionListFilter,
     TransactionRepository,
 )
 from reign.api.routes.profiles import profile_session
+from reign.domain.period import Period
 from reign.services.pdf_generator import (
     MonthlyReportInput,
     generate_holdings_report,
@@ -84,6 +86,29 @@ def bump_sankey_cache(profile: str) -> None:
     _SANKEY_VERSION[profile] = _SANKEY_VERSION.get(profile, 0) + 1
 
 
+def _neighbor_months(year: int, month: int) -> list[tuple[int, int]]:
+    """Previous and next calendar months for prefetch."""
+    base = Period(year=year, month=month)
+    prev = base.add_months(-1)
+    nxt = base.add_months(1)
+    return [(prev.year, prev.month), (nxt.year, nxt.month)]
+
+
+async def _prefetch_neighbors(
+    slug: str, year: int, month: int, currency: str, version: int
+) -> None:
+    """Fill the cache for neighbor months. Never raises. Own session per prefetch."""
+    try:
+        for y, m in _neighbor_months(year, month):
+            key = (slug, y, m, currency, version)
+            if key in _SANKEY_CACHE:
+                continue
+            async with get_session_factory(slug)() as session:
+                _SANKEY_CACHE[key] = await _compute_sankey(session, y, m, currency)
+    except Exception:  # noqa: S110 — best-effort warmup only
+        pass
+
+
 @router.get("/sankey")
 async def sankey(
     request: Request,
@@ -103,6 +128,8 @@ async def sankey(
         return JSONResponse(content=_SANKEY_CACHE[key], headers={"X-Cache": "HIT"})
     data = await _compute_sankey(session, year, month, currency)
     _SANKEY_CACHE[key] = data
+    prefetch_task = asyncio.create_task(_prefetch_neighbors(slug, year, month, currency, version))
+    prefetch_task.add_done_callback(lambda t: t.exception())
     return JSONResponse(content=data, headers={"X-Cache": "MISS"})
 
 
