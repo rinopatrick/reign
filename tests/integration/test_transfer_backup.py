@@ -57,3 +57,22 @@ async def test_transfer_and_backup_roundtrip(client):
     )
     assert r.status_code == 200
     assert r.json()["transactions"] >= 2
+
+
+@pytest.mark.asyncio
+async def test_import_preview_is_read_only(client):
+    r = await client.get("/api/accounts")
+    acc = r.json()[0]
+    csv_body = "Tanggal,Keterangan,Mutasi\n15/04/2026,STARBUCKS JAKARTA,-75000\n"
+    r = await client.post(
+        "/api/transactions/import/preview",
+        params={"account_id": acc["id"]},
+        files={"file": ("bca.csv", io.BytesIO(csv_body.encode()), "text/csv")},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["format"] in ("bca", "generic")
+    assert data["total"] == 1
+    assert data["preview"][0]["description"] == "STARBUCKS JAKARTA"
+    r = await client.get("/api/transactions?limit=100")
+    assert all(t["description"] != "STARBUCKS JAKARTA" for t in r.json())

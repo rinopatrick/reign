@@ -97,6 +97,34 @@ async def create_transaction(
     return out
 
 
+@router.post("/import/preview")
+async def import_preview(
+    account_id: int,
+    file: UploadFile = File(...),
+    session: AsyncSession = Depends(profile_session),
+):
+    """Inspect a bank CSV and report what would import, without writing rows."""
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="File must be a CSV")
+    try:
+        await AccountRepository(session).get(account_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    content = await read_limited_upload(file, settings.max_csv_bytes, "CSV")
+    try:
+        fmt, parsed = parse_csv(content)
+    except CSVParseError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return {
+        "format": fmt,
+        "total": len(parsed),
+        "preview": [
+            {"date": item["date"], "description": item["description"], "amount": item["amount"]}
+            for item in parsed[:10]
+        ],
+    }
+
+
 @router.get("/{transaction_id}", response_model=TransactionOut)
 async def get_transaction(transaction_id: int, session: AsyncSession = Depends(profile_session)):
     result = await session.execute(

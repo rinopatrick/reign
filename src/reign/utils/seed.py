@@ -66,6 +66,12 @@ DEFAULT_CATEGORIES = [
         "color": "#718096",
         "keywords": "transfer,tf,trf,kliring,rtgs",
     },
+    {
+        "name": "Admin Fee",
+        "type": "expense",
+        "color": "#94A3B8",
+        "keywords": "biaya admin,admin fee,monthly fee,maintenance fee,bank fee",
+    },
 ]
 
 
