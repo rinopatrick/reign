@@ -434,7 +434,9 @@ def _detect_generic(header: list[str]) -> bool:
     # Fallback: has date, description, and some amount-like column
     h_lower = [h.lower() for h in header]
     has_date = any(k in h_lower for k in ("date", "tanggal"))
-    has_desc = any(k in h_lower for k in ("description", "keterangan", "narrative", "remarks"))
+    has_desc = any(
+        k in h_lower for k in ("description", "keterangan", "narrative", "remarks", "transaksi")
+    )
     has_amount = any(k in h_lower for k in ("amount", "debit", "credit", "mutasi"))
     return has_date and has_desc and has_amount
 
@@ -483,11 +485,16 @@ def _generic_keys(rows: list[dict]):
     keys = list(rows[0].keys())
     date_key = next((k for k in keys if "date" in k.lower() or "tanggal" in k.lower()), None)
     desc_key = next(
-        (k for k in keys if any(x in k.lower() for x in ("desc", "keterangan", "narrative"))), None
+        (
+            k
+            for k in keys
+            if any(x in k.lower() for x in ("desc", "keterangan", "narrative", "transaksi"))
+        ),
+        None,
     )
     amt_key = next((k for k in keys if "amount" in k.lower()), None)
-    debit_key = next((k for k in keys if "debit" in k.lower()), None)
-    credit_key = next((k for k in keys if "credit" in k.lower()), None)
+    debit_key = next((k for k in keys if "debit" in k.lower() or "debet" in k.lower()), None)
+    credit_key = next((k for k in keys if "credit" in k.lower() or "kredit" in k.lower()), None)
     return date_key, desc_key, amt_key, debit_key, credit_key
 
 
