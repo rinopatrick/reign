@@ -101,6 +101,48 @@ def _parse_bni(rows: list[dict]) -> list[dict]:
     return _parse_bri_bni(rows, "%d-%b-%Y")
 
 
+def _detect_bsi(header: list[str]) -> bool:
+    # BSI (Bank Syariah Indonesia) export: Tanggal + Nama Transaksi +
+    # Debit/Kredit + Saldo. The Nama Transaksi marker keeps BRI/BNI/Blu out.
+    return (
+        "Tanggal" in header
+        and "Nama Transaksi" in header
+        and "Debit" in header
+        and "Kredit" in header
+    )
+
+
+def _parse_bsi(rows: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    for row in rows:
+        date_str = row.get("Tanggal", "").strip()
+        desc = row.get("Nama Transaksi", "").strip()
+        debit = _clean_idr_amount(row.get("Debit", ""))
+        credit = _clean_idr_amount(row.get("Kredit", ""))
+        if not date_str:
+            continue
+        try:
+            dt = datetime.strptime(date_str, "%d/%m/%Y")
+        except ValueError:
+            continue
+        amount = Decimal("0")
+        if debit:
+            amount = -Decimal(debit)
+        elif credit:
+            amount = Decimal(credit)
+        else:
+            continue
+        out.append(
+            {
+                "date": dt.date().isoformat(),
+                "description": desc,
+                "amount": amount,
+                "currency": "IDR",
+            }
+        )
+    return out
+
+
 def _detect_blu(header: list[str]) -> bool:
     # Blu by BCA Digital export: Tanggal + Keterangan + Debit/Kredit (+ optional
     # reference columns like No/ID Transaksi). Disambiguated from BRI/BNI by the
@@ -505,6 +547,7 @@ BANK_FORMATS: list[tuple[str, Callable, Callable]] = [
     ("cimb", _detect_cimb, _parse_cimb),
     ("danamon", _detect_danamon, _parse_danamon),
     ("bri", _detect_bri, _parse_bri),
+    ("bsi", _detect_bsi, _parse_bsi),
     ("generic", _detect_generic, _parse_generic),
 ]
 
