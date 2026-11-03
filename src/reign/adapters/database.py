@@ -99,16 +99,23 @@ def get_session_factory(slug: str) -> async_sessionmaker[AsyncSession]:
 
 
 # Backwards-compatible single-profile objects (used by desktop/tests).
-engine = create_async_engine(settings.database_url, future=True)
-AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+# Delegate to the default profile engine so there is exactly one database file
+# and schema path per profile; init_db() migrates it via ensure_schema_version.
+engine = get_engine(DEFAULT_PROFILE)
+AsyncSessionLocal = get_session_factory(DEFAULT_PROFILE)
 
 
 async def init_db(profile: str | None = None) -> None:
-    """Create all tables for a profile (default: env default profile)."""
+    """Create all tables for a profile, then run pending forward migrations."""
+    from reign.utils.seed import ensure_schema_version  # noqa: PLC0415  # lazy: breaks models import cycle
+
     slug = validate_slug(profile or _default_profile)
     eng = get_engine(slug)
     async with eng.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    factory = get_session_factory(slug)
+    async with factory() as session:
+        await ensure_schema_version(session)
 
 
 async def get_session():

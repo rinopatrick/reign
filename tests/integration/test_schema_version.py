@@ -24,7 +24,7 @@ async def test_schema_version_stamped():
 
 
 @pytest.mark.asyncio
-async def test_schema_version_v7_upgrades_to_v8_without_data_loss(tmp_path):
+async def test_schema_version_v7_upgrades_to_current_without_data_loss(tmp_path):
     """v7 DB with one account + one transaction upgrades via ensure_schema_version."""
     db_path = tmp_path / "v7.db"
     engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}")
@@ -49,14 +49,14 @@ async def test_schema_version_v7_upgrades_to_v8_without_data_loss(tmp_path):
         await s.commit()
     async with factory() as s:
         v = await ensure_schema_version(s)
-        assert v == 8
+        assert v == SCHEMA_VERSION
     async with factory() as s:
         assert (await s.execute(select(Account))).scalars().all()
         assert (await s.execute(select(Transaction))).scalars().all()
         row = (
             await s.execute(select(AppSetting).where(AppSetting.key == "schema_version"))
         ).scalar_one()
-        assert row.value == "8"
+        assert row.value == str(SCHEMA_VERSION)
     await engine.dispose()
 
 
@@ -75,3 +75,42 @@ async def test_schema_version_newer_db_rejected():
         row.value = str(SCHEMA_VERSION)
         s.add(row)
         await s.commit()
+
+
+@pytest.mark.asyncio
+async def test_schema_version_v8_upgrades_to_v9_without_data_loss(tmp_path):
+    """v8 DB with one transaction upgrades; row kept, external_id readable."""
+    db_path = tmp_path / "v8.db"
+    engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as s:
+        s.add(AppSetting(key="schema_version", value="8"))
+        s.add(Account(name="Cash", type="cash", currency="IDR", initial_balance=Decimal("0")))
+        await s.commit()
+    async with factory() as s:
+        acc = (await s.execute(select(Account))).scalars().first()
+        s.add(
+            Transaction(
+                date=date(2026, 2, 1),
+                description="SYNC",
+                amount=Decimal("50000"),
+                currency="IDR",
+                account_id=acc.id,
+            )
+        )
+        await s.commit()
+    async with factory() as s:
+        v = await ensure_schema_version(s)
+        assert v == 9
+    async with factory() as s:
+        txs = (await s.execute(select(Transaction))).scalars().all()
+        assert len(txs) == 1
+        assert txs[0].description == "SYNC"
+        assert txs[0].external_id is None
+        row = (
+            await s.execute(select(AppSetting).where(AppSetting.key == "schema_version"))
+        ).scalar_one()
+        assert row.value == "9"
+    await engine.dispose()
