@@ -1303,12 +1303,16 @@ async function drillSankey(categoryId, name) {
     const mm = String(month).padStart(2,'0');
     const start = `${year}-${mm}-01`;
     const end = `${year}-${mm}-31`;
+    const csvUrl = `/api/reports/drilldown.csv?category_id=${categoryId}&start_date=${start}&end_date=${end}`;
     const txs = await apiGet(`/api/transactions?category_id=${categoryId}&start_date=${start}&end_date=${end}&limit=50`);
     el.innerHTML = `
       <div class="border-t dark:border-gray-700 pt-3">
         <div class="flex items-center justify-between mb-2">
           <p class="text-xs font-semibold dark:text-gray-200">${escapeHtml(name)} — ${txs.length} transaksi bulan ini</p>
-          <button class="text-xs text-gray-500 hover:underline" onclick="document.getElementById('sankey-detail').innerHTML='';">Tutup</button>
+          <div class="flex items-center gap-2">
+            <a class="text-xs text-blue-600 hover:underline" href="${csvUrl}">Unduh CSV</a>
+            <button class="text-xs text-gray-500 hover:underline" onclick="document.getElementById('sankey-detail').innerHTML='';">Tutup</button>
+          </div>
         </div>
         ${txs.length ? txs.map(t => `
           <div class="flex items-center justify-between py-1 border-b dark:border-gray-700 last:border-0">

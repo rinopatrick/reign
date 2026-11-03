@@ -1,7 +1,9 @@
 """Report generation routes."""
 
+import csv
 import dataclasses
-from datetime import datetime
+import io
+from datetime import date, datetime
 from decimal import Decimal
 from io import BytesIO
 
@@ -10,7 +12,11 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from reign.adapters.database import validate_slug
-from reign.adapters.repository import HoldingRepository, TransactionRepository
+from reign.adapters.repository import (
+    HoldingRepository,
+    TransactionListFilter,
+    TransactionRepository,
+)
 from reign.api.routes.profiles import profile_session
 from reign.services.pdf_generator import (
     MonthlyReportInput,
@@ -155,6 +161,45 @@ async def sankey_pdf(
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/drilldown.csv")
+async def drilldown_csv(
+    request: Request,
+    category_id: int | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    session: AsyncSession = Depends(profile_session),
+):
+    """CSV export of the drill-down filter (category + date range)."""
+    txs = await TransactionRepository(session).list(
+        TransactionListFilter(
+            category_id=category_id, start_date=start_date, end_date=end_date, limit=5000
+        )
+    )
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["id", "date", "description", "amount", "currency", "category", "account_id"])
+    for t in txs:
+        cat = getattr(t.category, "name", "") if getattr(t, "category", None) else ""
+        writer.writerow(
+            [
+                t.id,
+                t.date.isoformat() if t.date else "",
+                t.description,
+                t.amount,
+                t.currency,
+                cat,
+                t.account_id,
+            ]
+        )
+    slug = validate_slug(request.headers.get("x-reign-profile", "") or "default")
+    filename = f"drilldown_{slug}_{start_date or 'all'}_{end_date or 'all'}.csv"
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
