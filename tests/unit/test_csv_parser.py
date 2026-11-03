@@ -138,3 +138,16 @@ def test_parse_bca_skips_bad_rows():
     fmt, rows = parse_csv(bad)
     assert fmt == "bca"
     assert len(rows) == 1
+
+
+def test_parse_bsi():
+    bsi = (
+        "Tanggal,Nama Transaksi,Debit,Kredit,Saldo\n"
+        "15/04/2026,TRSF E-BANKING DB,500000,,9500000\n"
+        "16/04/2026,SETORAN TUNAI,,2000000,11500000\n"
+    )
+    fmt, rows = parse_csv(bsi)
+    assert fmt == "bsi"
+    assert len(rows) == 2
+    assert rows[0]["amount"] == -500000
+    assert rows[1]["amount"] == 2000000
