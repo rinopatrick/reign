@@ -185,3 +185,20 @@ async def test_sankey_saved_carries_breakdown(client):
         assert sum(Decimal(x["value"]) for x in bd["expense"]) == Decimal(data["total_out"])
     else:
         assert saved == []
+
+
+@pytest.mark.asyncio
+async def test_drilldown_csv_matches_filter(client):
+    r = await client.get("/api/reports/drilldown.csv")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/csv")
+    lines = r.text.strip().splitlines()
+    assert lines[0] == "id,date,description,amount,currency,category,account_id"
+    r = await client.get("/api/reports/sankey")
+    out = [x for x in r.json()["links"] if x["target"].startswith("out:") and x.get("category_id")]
+    if out:
+        cid = out[0]["category_id"]
+        r = await client.get(f"/api/reports/drilldown.csv?category_id={cid}")
+        assert r.status_code == 200
+        body = r.text.strip().splitlines()
+        assert body[0].startswith("id,date,")
