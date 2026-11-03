@@ -113,3 +113,32 @@ async def test_import_same_file_twice_skips_duplicates(client):
         ]
     )
     assert after == before
+
+
+@pytest.mark.asyncio
+async def test_import_two_files_sharing_one_row_dedupes(client):
+    r = await client.get("/api/accounts")
+    acc = r.json()[0]
+    april = "Tanggal,Keterangan,Mutasi\n15/04/2026,STARBUCKS JAKARTA,-75000\n16/04/2026,GAJI APRIL,15000000\n"
+    mei = "Tanggal,Keterangan,Mutasi\n16/04/2026,GAJI APRIL,15000000\n17/05/2026,STARBUCKS JAKARTA,-75000\n"
+    r = await client.post(
+        "/api/transactions/import",
+        params={"account_id": acc["id"]},
+        files={"file": ("april.csv", io.BytesIO(april.encode()), "text/csv")},
+    )
+    assert r.status_code == 200
+    assert r.json()["imported"] == 2
+    r = await client.post(
+        "/api/transactions/import",
+        params={"account_id": acc["id"]},
+        files={"file": ("mei.csv", io.BytesIO(mei.encode()), "text/csv")},
+    )
+    assert r.status_code == 200
+    assert r.json()["imported"] == 1
+    assert r.json()["skipped"] == 1
+    rows = [
+        t
+        for t in (await client.get("/api/transactions?limit=100")).json()
+        if t["account_id"] == acc["id"]
+    ]
+    assert len([t for t in rows if t["description"] == "GAJI APRIL"]) == 1
