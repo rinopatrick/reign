@@ -93,7 +93,13 @@ async def sankey(
     if remainder > 0:
         nodes.append({"id": "saved", "label": "Sisa"})
     links = [
-        {"source": "income", "target": f"in:{name}", "value": str(Decimal(str(v)))}
+        {
+            "source": "income",
+            "target": f"in:{name}",
+            "value": str(Decimal(str(v))),
+            "category_id": cat_ids.get(name),
+            "category": name,
+        }
         for name, v in income_cats
     ]
     links += [
