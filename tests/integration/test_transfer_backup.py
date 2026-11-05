@@ -142,3 +142,19 @@ async def test_import_two_files_sharing_one_row_dedupes(client):
         if t["account_id"] == acc["id"]
     ]
     assert len([t for t in rows if t["description"] == "GAJI APRIL"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_import_preview_shows_fee_category(client):
+    r = await client.get("/api/accounts")
+    acc = r.json()[0]
+    csv_body = "Tanggal,Keterangan,Mutasi\n15/04/2026,BIAYA ADMIN,-10000\n"
+    r = await client.post(
+        "/api/transactions/import/preview",
+        params={"account_id": acc["id"]},
+        files={"file": ("bca.csv", io.BytesIO(csv_body.encode()), "text/csv")},
+    )
+    assert r.status_code == 200
+    row = r.json()["preview"][0]
+    assert row["description"] == "BIAYA ADMIN"
+    assert row["category"] == "Admin Fee"
