@@ -34,7 +34,7 @@ from reign.api.schemas import (
 from reign.config import settings
 from reign.domain.models import Transaction, TransactionSplit
 from reign.exceptions import CSVParseError, NotFoundError
-from reign.services.categorizer import categorize_transactions
+from reign.services.categorizer import categorize_transactions, match_category
 from reign.services.csv_parser import parse_csv
 from reign.services.ofx_parser import parse_ofx
 from reign.services.reconcile import reconcile_statement
@@ -116,14 +116,21 @@ async def import_preview(
         fmt, parsed = parse_csv(content)
     except CSVParseError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
-    return {
-        "format": fmt,
-        "total": len(parsed),
-        "preview": [
-            {"date": item["date"], "description": item["description"], "amount": item["amount"]}
-            for item in parsed[:10]
-        ],
-    }
+    repo = CategoryRepository(session)
+    categories = list(await repo.list())
+    by_id = {c.id: c.name for c in categories}
+    preview = []
+    for item in parsed[:10]:
+        cat_id = match_category(item["description"], categories)
+        preview.append(
+            {
+                "date": item["date"],
+                "description": item["description"],
+                "amount": item["amount"],
+                "category": by_id.get(cat_id) if cat_id else None,
+            }
+        )
+    return {"format": fmt, "total": len(parsed), "preview": preview}
 
 
 @router.get("/{transaction_id}", response_model=TransactionOut)

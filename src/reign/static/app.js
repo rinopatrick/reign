@@ -1753,15 +1753,7 @@ async function importCSV(input) {
   const accountId = accounts[0]?.id;
   if (!accountId) { alert('Create an account first'); return; }
 
-  const previewHTML = preview.preview.map((row, i) => `
-    <tr class="border-b dark:border-gray-700">
-      <td class="px-3 py-2 text-xs dark:text-gray-300">${escapeHtml(row.date)}</td>
-      <td class="px-3 py-2 text-xs dark:text-gray-300">${escapeHtml(row.description)}</td>
-      <td class="px-3 py-2 text-xs font-medium ${row.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${formatMoney(row.amount)}</td>
-    </tr>
-  `).join('');
-
-  const confirmed = confirm(`Detected ${preview.total} transactions (${preview.format} format).\n\nFirst 10 rows preview:\n${preview.preview.map(r => `${r.date} | ${escapeHtml(r.description)} | ${r.amount}`).join('\n')}\n\nImport to account "${escapeHtml(accounts[0]?.name ?? '')}"?`);
+  const confirmed = confirm(`Detected ${preview.total} transactions (${preview.format} format).\n\nFirst 10 rows preview:\n${preview.preview.map(r => `${r.date} | ${escapeHtml(r.description)} | ${r.amount} | ${r.category ? escapeHtml(r.category) : 'Uncategorized'}`).join('\n')}\n\nImport to account "${escapeHtml(accounts[0]?.name ?? '')}"?`);
   if (!confirmed) return;
 
   const form = new FormData();
