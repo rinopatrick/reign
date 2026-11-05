@@ -1,5 +1,10 @@
 # Changelog — Reign
 
+## v0.24.0 — Fee category in import preview (2026-11-03)
+
+- Preview rows carry resolved category names, confirm dialog lists them (PR #150, closes #149)
+- Suite: 132 passed + 1 skipped, ruff bersih, JS valid, smoke browser hijau
+
 ## v0.23.0 — Cross-file dedupe guard (2026-11-03)
 
 - Regression guard: overlapping statements import unique rows only (PR #147, closes #146)
