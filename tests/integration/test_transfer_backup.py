@@ -65,8 +65,8 @@ async def test_import_preview_is_read_only(client):
     acc = r.json()[0]
     csv_body = "Tanggal,Keterangan,Mutasi\n15/04/2026,STARBUCKS JAKARTA,-75000\n"
     r = await client.post(
-        "/api/transactions/import/preview",
-        params={"account_id": acc["id"]},
+        "/api/transactions/import",
+        params={"account_id": acc["id"], "dry_run": "true"},
         files={"file": ("bca.csv", io.BytesIO(csv_body.encode()), "text/csv")},
     )
     assert r.status_code == 200
@@ -150,8 +150,8 @@ async def test_import_preview_shows_fee_category(client):
     acc = r.json()[0]
     csv_body = "Tanggal,Keterangan,Mutasi\n15/04/2026,BIAYA ADMIN,-10000\n"
     r = await client.post(
-        "/api/transactions/import/preview",
-        params={"account_id": acc["id"]},
+        "/api/transactions/import",
+        params={"account_id": acc["id"], "dry_run": "true"},
         files={"file": ("bca.csv", io.BytesIO(csv_body.encode()), "text/csv")},
     )
     assert r.status_code == 200

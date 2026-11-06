@@ -34,7 +34,7 @@ from reign.api.schemas import (
 from reign.config import settings
 from reign.domain.models import Transaction, TransactionSplit
 from reign.exceptions import CSVParseError, NotFoundError
-from reign.services.categorizer import categorize_transactions, match_category
+from reign.services.categorizer import categorize_transactions
 from reign.services.csv_parser import parse_csv
 from reign.services.ofx_parser import parse_ofx
 from reign.services.reconcile import reconcile_statement
@@ -96,41 +96,6 @@ async def create_transaction(
     out = await repo.create(tx, splits=splits)
     _bump_sankey(request)
     return out
-
-
-@router.post("/import/preview")
-async def import_preview(
-    account_id: int,
-    file: UploadFile = File(...),
-    session: AsyncSession = Depends(profile_session),
-):
-    """Inspect a bank CSV and report what would import, without writing rows."""
-    if not file.filename or not file.filename.lower().endswith(".csv"):
-        raise HTTPException(status_code=400, detail="File must be a CSV")
-    try:
-        await AccountRepository(session).get(account_id)
-    except NotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
-    content = await read_limited_upload(file, settings.max_csv_bytes, "CSV")
-    try:
-        fmt, parsed = parse_csv(content)
-    except CSVParseError as e:
-        raise HTTPException(status_code=422, detail=str(e)) from e
-    repo = CategoryRepository(session)
-    categories = list(await repo.list())
-    by_id = {c.id: c.name for c in categories}
-    preview = []
-    for item in parsed[:10]:
-        cat_id = match_category(item["description"], categories)
-        preview.append(
-            {
-                "date": item["date"],
-                "description": item["description"],
-                "amount": item["amount"],
-                "category": by_id.get(cat_id) if cat_id else None,
-            }
-        )
-    return {"format": fmt, "total": len(parsed), "preview": preview}
 
 
 @router.get("/{transaction_id}", response_model=TransactionOut)
@@ -315,6 +280,8 @@ async def import_csv(
     account_id: int,
     file: UploadFile = File(...),
     session: AsyncSession = Depends(profile_session),
+    *,
+    dry_run: bool = False,
 ):
     """Upload a bank CSV and auto-import transactions."""
     if not file.filename or not file.filename.lower().endswith(".csv"):
@@ -338,6 +305,26 @@ async def import_csv(
     )
     fresh = [t for t in transactions if t.external_id not in existing]
     skipped = len(transactions) - len(fresh)
+
+    if dry_run:
+        await categorize_transactions(session, fresh)
+        cats = {c.id: c.name for c in await CategoryRepository(session).list()}
+        return CSVImportResponse(
+            imported=0,
+            skipped=len(transactions),
+            message=f"Would import {len(fresh)} transactions from {fmt} format.",
+            preview=[
+                {
+                    "date": str(t.date),
+                    "description": t.description,
+                    "amount": str(t.amount),
+                    "category": cats.get(t.category_id),
+                }
+                for t in fresh[:10]
+            ],
+            format=fmt,
+            total=len(transactions),
+        )
 
     if fresh:
         await categorize_transactions(session, fresh)
@@ -382,6 +369,8 @@ async def import_ofx(
     account_id: int,
     file: UploadFile = File(...),
     session: AsyncSession = Depends(profile_session),
+    *,
+    dry_run: bool = False,
 ):
     """Upload an OFX/QFX bank file and auto-import transactions."""
     if not file.filename or not file.filename.lower().endswith((".ofx", ".qfx")):
@@ -398,6 +387,25 @@ async def import_ofx(
     except CSVParseError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     transactions = _build_transactions(parsed, account_id)
+    if dry_run:
+        await categorize_transactions(session, transactions)
+        cats = {c.id: c.name for c in await CategoryRepository(session).list()}
+        return CSVImportResponse(
+            imported=0,
+            skipped=len(transactions),
+            message=f"Would import {len(transactions)} transactions from {fmt} format.",
+            preview=[
+                {
+                    "date": str(t.date),
+                    "description": t.description,
+                    "amount": str(t.amount),
+                    "category": cats.get(t.category_id),
+                }
+                for t in transactions[:10]
+            ],
+            format=fmt,
+            total=len(transactions),
+        )
     if transactions:
         await categorize_transactions(session, transactions)
         await TransactionRepository(session).create_many(transactions)
@@ -406,42 +414,6 @@ async def import_ofx(
         skipped=0,
         message=f"Imported {len(transactions)} transactions from {fmt} format.",
     )
-
-
-@router.post("/import-ofx-preview")
-async def import_ofx_preview(file: UploadFile = File(...)):
-    """Preview an OFX/QFX file before importing."""
-    if not file.filename or not file.filename.lower().endswith((".ofx", ".qfx")):
-        raise HTTPException(status_code=400, detail="File must be OFX or QFX")
-    if file.size is not None and file.size > settings.max_csv_bytes:
-        raise HTTPException(status_code=413, detail="OFX too large (max 5MB)")
-    content = await read_limited_upload(file, settings.max_csv_bytes, "OFX")
-    try:
-        fmt, parsed = parse_ofx(bytes(content))
-    except CSVParseError as e:
-        raise HTTPException(status_code=422, detail=str(e)) from e
-    return {"format": fmt, "preview": parsed[:10], "total": len(parsed)}
-
-
-@router.post("/import-preview")
-async def import_csv_preview(
-    file: UploadFile = File(...),
-):
-    """Preview a CSV before importing — returns first 10 rows + detected format."""
-    if not file.filename or not file.filename.lower().endswith(".csv"):
-        raise HTTPException(status_code=400, detail="File must be a CSV")
-    if file.size is not None and file.size > settings.max_csv_bytes:
-        raise HTTPException(status_code=413, detail="CSV too large (max 5MB)")
-    content = await read_limited_upload(file, settings.max_csv_bytes, "CSV")
-    try:
-        fmt, parsed = parse_csv(content)
-    except CSVParseError as e:
-        raise HTTPException(status_code=422, detail=str(e)) from e
-    return {
-        "format": fmt,
-        "preview": parsed[:10],
-        "total": len(parsed),
-    }
 
 
 @router.get("/export/csv")

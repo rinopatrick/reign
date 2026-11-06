@@ -1739,19 +1739,19 @@ async function importCSV(input) {
   const file = input.files[0];
   if (!file) return;
 
-  // Preview first
+  const accounts = await apiGet('/api/accounts');
+  const accountId = accounts[0]?.id;
+  if (!accountId) { alert('Create an account first'); return; }
+
+  // Preview first (dry run writes nothing)
   const previewForm = new FormData();
   previewForm.append('file', file);
-  const pr = await apiFetch('/api/transactions/import-preview', { method: 'POST', body: previewForm });
+  const pr = await apiFetch(`/api/transactions/import?account_id=${accountId}&dry_run=true`, { method: 'POST', body: previewForm });
   const preview = await pr.json();
   if (!pr.ok) {
     alert('CSV parse error: ' + (preview.detail || 'Unknown'));
     return;
   }
-
-  const accounts = await apiGet('/api/accounts');
-  const accountId = accounts[0]?.id;
-  if (!accountId) { alert('Create an account first'); return; }
 
   const confirmed = confirm(`Detected ${preview.total} transactions (${preview.format} format).\n\nFirst 10 rows preview:\n${preview.preview.map(r => `${r.date} | ${escapeHtml(r.description)} | ${r.amount} | ${r.category ? escapeHtml(r.category) : 'Uncategorized'}`).join('\n')}\n\nImport to account "${escapeHtml(accounts[0]?.name ?? '')}"?`);
   if (!confirmed) return;
