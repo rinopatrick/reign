@@ -1,9 +1,9 @@
-# Reign — Specification v0.3 (hardened, living doc)
+# Reign — Specification v0.26 (hardened, living doc)
 
 ## Overview
 Local-first personal finance dashboard. Self-hosted, zero subscription. Single SQLite file, no cloud.
 
-Status: implemented + hardened (fases A–E goal `mvxpogxs-eukkty`). Dokumen ini menggantikan spec v1.0 yang beku.
+Status: implemented + hardened through v0.26.0. Dokumen ini menggantikan spec v1.0 yang beku dan spec v0.3 yang kedaluwarsa.
 
 ## Core Value Prop (verified)
 1. Upload bank CSV → auto-categorize transactions — `tests/unit/test_csv_parser.py` (7), `tests/integration/test_end_to_end.py::test_csv_import`
@@ -40,10 +40,11 @@ Status: implemented + hardened (fases A–E goal `mvxpogxs-eukkty`). Dokumen ini
 - [x] Arsitektur: error handler JSON konsisten, settings service tunggal, restore/upload/summary-query helpers terpisah, route tipis
 
 ### Explicitly supported banks (realistis)
-- BCA (`Tanggal,Keterangan,Mutasi`), Mandiri (`Tanggal Transaksi,Debit,Credit`), Jenius (`Date,Description,Amount`), generic fallback (date-like + desc-like + amount/debit/credit). Bukti: `test_parse_bca/mandiri/jenius/generic`.
+- BCA, Mandiri, Jenius, BRI, BNI, Blu, Jago, SeaBank, CIMB, Danamon, BSI + generic fallback (incl. Transaksi/Kredit spelling variants). Bukti: `tests/unit/test_csv_parser.py` (21 parse tests).
+- OFX/QFX import + reconciliation with bank statements + investment/stock tracking + Web Push + PWA + multi-profile — shipped, see CHANGELOG v0.4.0–v0.25.0.
 
-### Out of Scope (v0.3, tetap out — follow-up, bukan refactor)
-- Bank API integration, mobile app / PWA, LLM categorization fallback, multi-user/auth penuh, migrasi Alembic penuh
+### Out of Scope (v0.25, tetap out — follow-up, bukan refactor)
+- Bank API integration (no cloud sync by design, see ADR-002), native mobile apps, LLM categorization fallback, multi-user/auth penuh, migrasi Alembic penuh
 - 4 format bank baru (BRI, BNI, Blu, Jago) — fitur baru, bukan bagian hardening ini
 - OFX/QFX import, reconciliation with bank statements, investment/stock tracking — lihat Roadmap README (belum dikerjakan)
 
@@ -56,8 +57,16 @@ Status: implemented + hardened (fases A–E goal `mvxpogxs-eukkty`). Dokumen ini
 6. Backup→restore round-trip + dry-run + snapshot — `test_security.py`, `test_transfer_backup.py`
 7. Upload >limit → 413; FK fiktif → 404; Origin asing ditolak — `test_security.py` (9)
 8. XSS payload tampil sebagai teks escaped, tidak ada elemen `img` — smoke browser fase E (`&lt;img...&gt;`, `hasImg=false`, `No page errors`)
-9. `pytest -q` 0 failures (30 passed); `ruff check` + `ruff format --check` bersih; `node --check app.js` ok
+9. `pytest -q` 0 failures (132+ passed, 1 skipped offline-Yahoo); `ruff check` + `ruff format --check` bersih; `node --check app.js` ok
+10. Gates never run bare `ruff format` (it rewrites mtimes and dirties the tree); restyle only deliberately, then review the diff
 10. Semua data di single SQLite file; backup JSON v2 lengkap
+
+### v0.4.0–v0.25.0 shipped (ringkas, detail di CHANGELOG)
+- Schema migrations: MIGRATIONS registry + SCHEMA_VERSION 9 + init_db runs pending migrations; downgrade via backup/restore (ADR-001 bertahan, additive-only).
+- Import pipeline: OFX/QFX, preview read-only + kategori per baris (incl. Admin Fee), fingerprint external_id, dedupe lintas file.
+- Reports view: monthly/sankey/holdings PDF bilingual, drilldown CSV, Sankey cache + prefetch, single reportPeriod state.
+- Holdings + alert email/webhook/Web Push (VAPID generate/rotate), scheduler digest harian, arsip gzip + retensi berjenjang.
+- PWA + badge unread + tema kontras tinggi + polish better-*.
 
 ## Non-goals
 - Tidak mengubah kontrak response secara diam-diam: perubahan aditif (TrendPoint +year/month, TransactionListParams +after_id) kompatibel dengan `app.js` lama.
