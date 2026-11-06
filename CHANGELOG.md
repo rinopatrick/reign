@@ -1,5 +1,10 @@
 # Changelog — Reign
 
+## v0.26.0 — Unified dry-run import path (2026-11-06)
+
+- Single dry_run flag on CSV and OFX imports; deleted three preview endpoints (PR #156, closes #155)
+- Suite: 134 passed + 1 skipped, ruff bersih, JS valid, smoke browser hijau
+
 ## v0.25.0 — Dedupe contract guards (2026-11-05)
 
 - Filename-blind and amount-sensitive cross-file dedupe pinned by tests (PR #153, closes #152)
