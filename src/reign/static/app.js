@@ -1756,13 +1756,15 @@ async function importCSV(input) {
   const confirmed = confirm(`Detected ${preview.total} transactions (${preview.format} format).\n\nFirst 10 rows preview:\n${preview.preview.map(r => `${r.date} | ${escapeHtml(r.description)} | ${r.amount} | ${r.category ? escapeHtml(r.category) : 'Uncategorized'}`).join('\n')}\n\nImport to account "${escapeHtml(accounts[0]?.name ?? '')}"?`);
   if (!confirmed) return;
 
+  const status = document.getElementById('import-status');
+  status.textContent = 'Importing…';
   const form = new FormData();
   form.append('file', file);
   const r = await apiFetch(`/api/transactions/import?account_id=${accountId}`, { method: 'POST', body: form });
   const result = await r.json();
-  const status = document.getElementById('import-status');
   if (r.ok) {
-    status.textContent = '✓ ' + result.message;
+    const skipped = result.skipped ? ` (${result.skipped} already imported, skipped)` : '';
+    status.textContent = '✓ ' + result.message + skipped;
     renderView('transactions');
   } else {
     status.textContent = 'Error: ' + (result.detail || 'Import failed');
