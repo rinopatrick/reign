@@ -1,5 +1,10 @@
 # Changelog — Reign
 
+## v0.25.0 — Dedupe contract guards (2026-11-05)
+
+- Filename-blind and amount-sensitive cross-file dedupe pinned by tests (PR #153, closes #152)
+- Suite: 134 passed + 1 skipped, ruff bersih, JS valid, smoke browser hijau
+
 ## v0.24.0 — Fee category in import preview (2026-11-03)
 
 - Preview rows carry resolved category names, confirm dialog lists them (PR #150, closes #149)
