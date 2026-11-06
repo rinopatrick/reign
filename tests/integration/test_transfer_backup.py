@@ -158,3 +158,44 @@ async def test_import_preview_shows_fee_category(client):
     row = r.json()["preview"][0]
     assert row["description"] == "BIAYA ADMIN"
     assert row["category"] == "Admin Fee"
+
+
+@pytest.mark.asyncio
+async def test_import_same_bytes_different_filename_skips_all(client):
+    r = await client.get("/api/accounts")
+    acc = r.json()[0]
+    csv_body = "Tanggal,Keterangan,Mutasi\n15/04/2026,STARBUCKS JAKARTA,-75000\n"
+    first = {"file": ("april.csv", io.BytesIO(csv_body.encode()), "text/csv")}
+    second = {"file": ("mei.csv", io.BytesIO(csv_body.encode()), "text/csv")}
+    r = await client.post("/api/transactions/import", params={"account_id": acc["id"]}, files=first)
+    assert r.status_code == 200
+    assert r.json()["imported"] == 1
+    r = await client.post(
+        "/api/transactions/import", params={"account_id": acc["id"]}, files=second
+    )
+    assert r.status_code == 200
+    assert r.json()["imported"] == 0
+    assert r.json()["skipped"] == 1
+
+
+@pytest.mark.asyncio
+async def test_import_same_description_different_amount_imports(client):
+    r = await client.get("/api/accounts")
+    acc = r.json()[0]
+    first = "Tanggal,Keterangan,Mutasi\n15/04/2026,STARBUCKS JAKARTA,-75000\n"
+    second = "Tanggal,Keterangan,Mutasi\n15/04/2026,STARBUCKS JAKARTA,-80000\n"
+    r = await client.post(
+        "/api/transactions/import",
+        params={"account_id": acc["id"]},
+        files={"file": ("a.csv", io.BytesIO(first.encode()), "text/csv")},
+    )
+    assert r.status_code == 200
+    assert r.json()["imported"] == 1
+    r = await client.post(
+        "/api/transactions/import",
+        params={"account_id": acc["id"]},
+        files={"file": ("b.csv", io.BytesIO(second.encode()), "text/csv")},
+    )
+    assert r.status_code == 200
+    assert r.json()["imported"] == 1
+    assert r.json()["skipped"] == 0
