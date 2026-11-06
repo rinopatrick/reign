@@ -1,5 +1,11 @@
 # Changelog — Reign
 
+## v0.26.1 — Grill round: docs plus one-action import (2026-11-06)
+
+- Spec v0.26, GLOSSARY sync terms, ADR-002 no-cloud rule, lint gate note (PR #159, closes #158)
+- One-action import: progress text plus skipped count in confirm flow (PR #161, closes #160)
+- Suite: 134 passed + 1 skipped, ruff bersih, JS valid, smoke browser hijau
+
 ## v0.26.0 — Unified dry-run import path (2026-11-06)
 
 - Single dry_run flag on CSV and OFX imports; deleted three preview endpoints (PR #156, closes #155)
