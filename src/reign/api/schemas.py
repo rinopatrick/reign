@@ -207,6 +207,9 @@ class CSVImportResponse(BaseModel):
     imported: int
     skipped: int
     message: str
+    preview: list[dict] | None = None
+    format: str | None = None
+    total: int | None = None
 
 
 class ReconcileMatch(BaseModel):

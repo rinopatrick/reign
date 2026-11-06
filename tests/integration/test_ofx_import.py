@@ -51,11 +51,14 @@ async def test_ofx_preview_and_import(client):
     r = await client.get("/api/accounts")
     acc = next(a for a in r.json() if a["name"] == "Cash")
     r = await client.post(
-        "/api/transactions/import-ofx-preview",
+        f"/api/transactions/import-ofx?account_id={acc['id']}&dry_run=true",
         files={"file": ("stmt.ofx", OFX_SAMPLE, "application/x-ofx")},
     )
     assert r.status_code == 200
-    assert r.json()["total"] == 2
+    data = r.json()
+    assert data["format"] == "ofx"
+    assert data["total"] == 2
+    assert data["imported"] == 0
     r = await client.post(
         f"/api/transactions/import-ofx?account_id={acc['id']}",
         files={"file": ("stmt.ofx", OFX_SAMPLE, "application/x-ofx")},
